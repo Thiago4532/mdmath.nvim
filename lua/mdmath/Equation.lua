@@ -161,7 +161,10 @@ function Equation:_init(bufnr, row, col, text, opts)
     end
 
     local processor = Processor.from_bufnr(bufnr)
-    processor:request(self.equation, cell_width, cell_height, self.width, height, flags, color, function(res, err)
+    local preamble = type(config.preamble) == "function" and config.preamble(vim.api.nvim_buf_get_name(bufnr))
+        or config.preamble
+    local data = preamble .. self.equation
+    processor:request(data, cell_width, cell_height, self.width, height, flags, color, function(res, err)
         if self.valid then
             self:_create(res, err)
         end

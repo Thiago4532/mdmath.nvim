@@ -20,6 +20,10 @@ local default_opts = {
     -- WARNING: This do not affect how the images are displayed, only how many pixels are used to render them.
     --          See `dynamic_scale` to modify the displayed size.
     internal_scale = 1.0,
+
+    -- Commands that will be prepended to each equation
+    -- Can be a string or function(filename) -> string
+    preamble = "",
 }
 
 local _opts = nil
@@ -62,9 +66,18 @@ function M.validate()
         dynamic = {opts.dynamic, 'boolean'},
         dynamic_scale = {opts.dynamic_scale, 'number'},
         internal_scale = {opts.internal_scale, 'number'},
+        preamble = {opts.preamble, {'string', 'function'}},
     }
 
     opts.foreground = require'mdmath.util'.hl_as_hex(opts.foreground)
+
+    -- Validate preamble function signature if it's a function
+    if type(opts.preamble) == "function" then
+        local ok, result = pcall(opts.preamble, "")
+        if not ok or type(result) ~= "string" then
+            error("preamble function must accept a filename (string) and return a string")
+        end
+    end
 
     setmetatable(opts, {
         __newindex = function()
