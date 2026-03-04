@@ -17,6 +17,7 @@ https://github.com/user-attachments/assets/bcfab0d2-60fb-4e8a-9402-2be62a5504f6
 
 You also need a terminal emulator that supports [Kitty Graphics Protocol#Unicode Placeholders](https://sw.kovidgoyal.net/kitty/graphics-protocol/#unicode-placeholders), the following terminals were tested.
   - [x] Kitty `>=0.28.0`
+  - [x] Ghostty `>= 1.2.3`
   - [ ] Konsole (missing support for Unicode Placeholders)
   - [ ] WezTerm (missing support for Unicode Placeholders)
 
@@ -98,4 +99,4 @@ The plugin is currently at alpha, many features are planned for the next version
   - [x] Dynamic width and height
   - [ ] Refactoring: LuaCATS annotations
   - [ ] Documentation
-  - [ ] `:checkhealth`
+  - [x] `:checkhealth`
