@@ -151,9 +151,9 @@ function Buffer:parse(start_row, end_row)
     local function get_queries(tree)
         local root = tree:root()
 
-        for _, node in query:iter_captures(root, 0, start_row, end_row) do
+        for _, node in query:iter_captures(root, bufnr, start_row, end_row) do
             local sr, sc, er, ec = node:range()
-            local value = ts.get_node_text(node, 0)
+            local value = ts.get_node_text(node, bufnr)
 
             process_equation(sr, sc, er, ec, value)
         end
