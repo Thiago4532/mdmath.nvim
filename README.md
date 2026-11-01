@@ -97,6 +97,22 @@ Currently, it only supports rendering the image inline, features like rendering 
 
 If you are using TMUX, remember to enable `allow-passthrough` in your `~/.tmux.conf`.
 
+## Development
+
+```sh
+make test    # headless Lua specs (one Neovim process per spec) + node IPC/unit tests
+make bench   # viewport scan cost on a synthetic document
+```
+
+The render spec needs `node`, `rsvg-convert`, ImageMagick and `mdmath-js/node_modules`
+(`:MdMath build`). Without them it is skipped, not failed. Terminal capabilities are probed
+with `python3 tests/manual/kitty-probe.py`; the manual checklist is
+`tests/manual/mdmath-test.md`.
+
+The Lua client and the node processor share a byte-oriented wire format. If you change any
+field order or meaning, bump `PROTOCOL_VERSION` in both `lua/mdmath/Processor.lua` and
+`mdmath-js/src/processor.js` — the processor refuses to start on a mismatch.
+
 ## Looking to the future!
 
 The plugin is currently at alpha, many features are planned for the next versions, here are some of the planned features, also you have any suggestions, feel free to open an issue:
