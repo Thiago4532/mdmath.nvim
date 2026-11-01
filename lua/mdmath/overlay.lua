@@ -152,12 +152,17 @@ function Buffer:parse(start_row, end_row)
 
     local function get_queries(tree)
         local root = tree:root()
+        local tsr, _, ter = root:range()
 
-        -- Iterate the whole tree and filter by overlap instead of passing the
-        -- viewport range to `iter_captures`: the range restricts captures by
-        -- their *start* row, so a block whose opening fence is just above the
-        -- viewport would be skipped, treated as out of view and invalidated
-        -- forever (nothing re-parses it once scrolling stops).
+        -- Each injected `markdown_inline` tree covers one markdown block, so
+        -- rejecting the trees that cannot overlap the viewport is far cheaper than
+        -- running the query over the whole document on every tick. Unlike passing
+        -- the viewport to `iter_captures` (which filters by capture *start* row),
+        -- this still sees a block that begins above the viewport and ends inside.
+        if ter < start_row or tsr >= end_row then
+            return
+        end
+
         for _, node in query:iter_captures(root, bufnr) do
             local sr, sc, er, ec = node:range()
             if er >= start_row and sr < end_row then
