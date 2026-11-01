@@ -32,6 +32,10 @@ local default_opts = {
 }
 
 local _opts = nil
+-- The read-only proxy handed out by `M.opts`. Kept in a local instead of a field
+-- on `M`: a table field would be writable (`config.opts = {}` bypasses
+-- `__newindex`, which only fires for missing keys).
+local readonly_opts = nil
 
 local M = {
     validated = false,
@@ -50,7 +54,7 @@ local mt = {
         M.validate()
         -- `validate()` installs the read-only proxy: return that instead of the
         -- writable table, otherwise the first accessor gets a mutable reference.
-        return rawget(M, 'opts')
+        return readonly_opts
     end,
     __newindex = function()
         error 'Attempt to modify read-only mdmath.nvim configuration.'
@@ -108,7 +112,7 @@ function M.validate()
     end
 
     M.validated = true
-    rawset(M, 'opts', readonly)
+    readonly_opts = readonly
 end
 
 function M.set_opts(opts)
