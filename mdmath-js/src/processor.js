@@ -9,6 +9,11 @@ import { sha256Hash } from './util.js';
 import { randomBytes } from 'node:crypto';
 import { onExit } from './onexit.js';
 
+// Bumped whenever the wire format changes; the Lua side passes its version as
+// argv[2]. A mismatch aborts before stdin is read, so a half-updated install
+// fails loudly instead of hanging on a request the other side cannot parse.
+const PROTOCOL_VERSION = 1;
+
 // To prevent conflicts with other instances
 const DIRECTORY_SUFFIX = randomBytes(3).toString('hex');
 
@@ -179,7 +184,22 @@ function processAll(request) {
     }
 }
 
+/**
+ * Refuses to serve a client that speaks a different wire format.
+ *
+ * @param {string[]} argv process.argv
+ */
+function checkProtocol(argv) {
+    const theirs = argv[2];
+    if (theirs !== String(PROTOCOL_VERSION)) {
+        console.error(`mdmath protocol mismatch: lua=${theirs ?? '<missing>'} processor=${PROTOCOL_VERSION}.`
+            + ' Reinstall or rebuild the plugin so both halves come from the same commit.');
+        process.exit(2);
+    }
+}
+
 function main() {
+    checkProtocol(process.argv);
     mkdirSync(IMG_DIR);
 
     onExit(() => {

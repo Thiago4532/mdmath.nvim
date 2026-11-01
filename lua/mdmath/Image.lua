@@ -108,10 +108,10 @@ local function next_id()
     return id
 end
 
--- A single escape sequence may carry at most 4096 base64 bytes. 3072 is the
--- largest multiple of 3 below that, so chunk boundaries never split a base64
--- quantum (no implicit padding inside a chunk). Kept smaller than the tty buffer
--- so a chunk is far less likely to be split by a partial write.
+-- A single escape sequence may carry at most 4096 base64 bytes. 1536 raw bytes
+-- encode to 2048 base64 characters (no padding: 1536 is a multiple of 3), which
+-- keeps one sequence well below both that limit and a typical tty buffer, so a
+-- partial write cannot easily split it.
 local CHUNK_SIZE = 1536
 
 local function kitty_send_data(params, data)

@@ -18,6 +18,12 @@ end
 
 local PROCESS_PATH = processor_dir .. '/src/processor.js'
 
+-- Bumped whenever the wire format changes. It is passed to the JS process as
+-- argv[2]; the two halves refuse to talk to each other on a mismatch, which
+-- turns "silent drift" (field order changed on one side only, no reply ever
+-- arrives) into an immediate, readable failure. Change both sides together.
+local PROTOCOL_VERSION = 1
+
 local Processor = util.class 'Processor'
 
 function Processor:_assert(condition, ...)
@@ -199,7 +205,7 @@ function Processor:_init()
     self.closed = false
 
     self.handle, err = uv.spawn('node', {
-        args = { PROCESS_PATH },
+        args = { PROCESS_PATH, tostring(PROTOCOL_VERSION) },
         stdio = { self.pipes[0], self.pipes[1], self.pipes[2] }
     }, function(code, signal)
         if code == 0 and signal == 0 then
@@ -210,7 +216,10 @@ function Processor:_init()
         else
             local err = table.concat(self.err_buffer)
             self:close()
-            error('processor runtime error: ' .. err)
+            -- Report instead of throwing: this runs inside a libuv callback, where
+            -- `error()` only produces a "Error executing luv callback" stack that
+            -- buries the child's own message (protocol mismatch, missing binary).
+            util.err_message('processor runtime error: ', err)
         end
     end)
     self:_assert(self.handle, 'failed to spawn LatexProcessor: ', err)
