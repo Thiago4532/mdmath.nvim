@@ -1,0 +1,59 @@
+name: Tests
+
+on: [push, pull_request]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # nvim-treesitter (0.12) provides the markdown_inline injection query and knows
+  # the grammar revisions. Pinned so a quiet upstream change cannot break CI;
+  # bump deliberately after checking `make test` locally.
+  NVIM_TREESITTER_COMMIT: a9c4e1457e2e59f1b82c8f78dcdb3b2517555200
+  NVIM_TREESITTER_RUNTIME: /tmp/nvim-treesitter/runtime
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Neovim
+        run: |
+          curl -fsSL -o /tmp/nvim.tar.gz \
+            https://github.com/neovim/neovim/releases/download/stable/nvim-linux-x86_64.tar.gz
+          dir=$(tar -tzf /tmp/nvim.tar.gz | head -1 | cut -d/ -f1)
+          sudo tar -C /opt -xzf /tmp/nvim.tar.gz
+          sudo ln -sf "/opt/$dir/bin/nvim" /usr/local/bin/nvim
+          nvim --version | head -1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mdmath-js/package-lock.json
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick librsvg2-bin
+          rsvg-convert --version
+
+      - name: Install rendering dependencies
+        run: npm ci --no-audit --no-fund --prefix mdmath-js
+
+      - name: Install tree-sitter parsers
+        run: |
+          npm install -g tree-sitter-cli@0.27.1
+          git init -q /tmp/nvim-treesitter
+          git -C /tmp/nvim-treesitter remote add origin https://github.com/nvim-treesitter/nvim-treesitter
+          git -C /tmp/nvim-treesitter fetch -q --depth 1 origin "$NVIM_TREESITTER_COMMIT"
+          git -C /tmp/nvim-treesitter checkout -q FETCH_HEAD
+          nvim --headless --clean \
+            -c "set rtp+=/tmp/nvim-treesitter" \
+            -c "lua require('nvim-treesitter').install({ 'markdown', 'markdown_inline' }):wait(600000)" \
+            -c "qa!"
+
+      - name: Run tests
+        run: make test
