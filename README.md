@@ -31,7 +31,7 @@ After some refactoring, I want to implement a fallback for terminals that suppor
 
 ```lua
 {
-    'Thiago4532/mdmath.nvim',
+    'ApexGP/mdmath.nvim',
     dependencies = {
         'nvim-treesitter/nvim-treesitter',
     },
@@ -94,6 +94,7 @@ Currently, it only supports rendering the image inline, features like rendering 
   - `:MdMath disable`: Disable the plugin for the current buffer
   - `:MdMath clear`: Refresh all equations
   - `:MdMath build`: Build the node.js server
+  - `:checkhealth mdmath`: Check Neovim/parser/dependency/terminal requirements
 
 If you are using TMUX, remember to enable `allow-passthrough` in your `~/.tmux.conf`.
 
@@ -123,4 +124,4 @@ The plugin is currently at alpha, many features are planned for the next version
   - [x] Dynamic width and height
   - [ ] Refactoring: LuaCATS annotations
   - [ ] Documentation
-  - [ ] `:checkhealth`
+  - [x] `:checkhealth`
