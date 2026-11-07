@@ -2,6 +2,7 @@ local api = vim.api
 
 local M = {}
 
+M.version = require'mdmath.version'
 M.is_loaded = false
 
 function M.setup(opts)

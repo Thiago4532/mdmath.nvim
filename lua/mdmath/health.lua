@@ -35,6 +35,7 @@ local function check_neovim()
     if vim.fn.has('nvim-0.10') == 1 then
         local version = vim.version()
         health.ok(string.format('Neovim %d.%d.%d', version.major, version.minor, version.patch))
+        health.info('mdmath.nvim ' .. require'mdmath.version')
     else
         health.error('Neovim >= 0.10 is required', 'Upgrade Neovim.')
     end
