@@ -5,9 +5,20 @@ local M = {}
 local DEFAULT_CELL_WIDTH = 8
 local DEFAULT_CELL_HEIGHT = 16
 
+--- Terminal size in cells and pixels, as reported by `TIOCGWINSZ`.
+---@class mdmath.Winsize
+---@field row integer
+---@field col integer
+---@field xpixel integer
+---@field ypixel integer
+
+---@type mdmath.Winsize|nil
 local winsize = nil
 local warned_missing_pixels = false
 
+--- Cached terminal size.
+---@return mdmath.Winsize|nil
+---@return integer|nil errno
 function M.size()
     if winsize == nil then
         local size, err = require'mdmath.terminfo._system'.request_size()
@@ -22,6 +33,10 @@ function M.size()
     return winsize
 end
 
+--- Pixel size of a single cell, falling back to 8x16 when the terminal does not
+--- report pixel dimensions.
+---@return integer width
+---@return integer height
 function M.cell_size()
     local size, err = M.size()
 
@@ -50,6 +65,7 @@ function M.cell_size()
     return math.max(1, math.floor(width)), math.max(1, math.floor(height))
 end
 
+--- Drops the cached size so the next `size()` re-queries the terminal.
 function M.refresh()
     winsize = nil
 end

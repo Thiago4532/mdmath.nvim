@@ -9,7 +9,35 @@ local config = require'mdmath.config'.opts
 
 local ns = nvim.create_namespace('mdmath-marks')
 
+--- A `{ text, byte length }` pair. A negative length marks a virtual line that
+--- only exists in the rendered image.
+---@class mdmath.mark.Text
+---@field [1] string
+---@field [2] integer
+
+--- Options accepted by `marks.add`.
+---@class mdmath.MarkOpts
+---@field text mdmath.mark.Text|nil
+---@field lines mdmath.mark.Text[]|nil
+---@field color string|integer
+---@field text_pos 'eol'|'overlay'|nil
+
+--- An extmark group: the placeholder cells (or the error text) of one equation.
+---@class mdmath.Mark
+---@field bufnr integer
+---@field opts mdmath.MarkOpts
+---@field visible boolean
+---@field render_visible boolean
+---@field extmark_ids integer[]
+---@field total_lines integer|nil
+---@field lengths integer[]
+---@field num_lines integer
+---@field pos mdmath.Position
+---@field id integer|nil
+---@field _init fun(self: mdmath.Mark, bufnr: integer, row: integer, col: integer, opts: mdmath.MarkOpts): false|nil
+---@field new fun(bufnr: integer, row: integer, col: integer, opts: mdmath.MarkOpts): mdmath.Mark?
 local Mark = util.class 'Mark'
+---@type table<integer, mdmath.marks.Buffer>
 local buffers = {}
 local num_buffers = 0
 
@@ -47,12 +75,13 @@ function Mark:_init(bufnr, row, col, opts)
         col_end = col + self.lengths[1]
     end
 
-    self.pos = tracker.add(bufnr, row, col, row_end, col_end)
-    if not self.pos then
+    local pos = tracker.add(bufnr, row, col, row_end, col_end)
+    if not pos then
         -- Buffer is not tracked (e.g. `buf_attach` failed), the mark cannot be
         -- repositioned so there is no point in keeping it.
         return false
     end
+    self.pos = pos
 
     self.pos.on_finish = function()
         self:remove()
@@ -67,6 +96,9 @@ function Mark:remove()
     buffer:remove(self.id)
 end
 
+---@param row integer 0-indexed
+---@param col integer 0-indexed
+---@return boolean
 function Mark:contains(row, col)
     local srow, scol = unpack(self.pos)
     if self.num_lines == 1 then
@@ -88,6 +120,7 @@ function Mark:contains(row, col)
     return true
 end
 
+---@param visible boolean
 function Mark:set_visible(visible)
     if self.visible == visible then
         return
@@ -96,6 +129,13 @@ function Mark:set_visible(visible)
     self.visible = visible
 end
 
+--- Per-buffer registry of marks, plus the `_show` switch used by `hide_on_insert`.
+---@class mdmath.marks.Buffer
+---@field bufnr integer
+---@field marks table<integer, mdmath.Mark>
+---@field _show boolean
+---@field _init fun(self: mdmath.marks.Buffer, bufnr: integer)
+---@field new fun(bufnr: integer): mdmath.marks.Buffer
 local Buffer = util.class 'Buffer'
 
 function Buffer:_init(bufnr)
@@ -104,6 +144,7 @@ function Buffer:_init(bufnr)
     self._show = true
 end
 
+--- Forces a redraw so the decoration provider runs again.
 function Buffer:redraw()
     nvim._redraw({
         buf = self.bufnr,
@@ -111,6 +152,8 @@ function Buffer:redraw()
     })
 end
 
+---@param mark mdmath.Mark
+---@return integer id
 function Buffer:add(mark)
     assert(mark.bufnr == self.bufnr)
 
@@ -122,6 +165,7 @@ function Buffer:add(mark)
     return id
 end
 
+---@param id integer
 function Buffer:remove(id)
     local mark = self.marks[id]
     if mark then
@@ -138,6 +182,7 @@ function Buffer:remove(id)
     end
 end
 
+---@param show boolean
 function Buffer:show(show)
     if self._show == show then
         return
@@ -161,6 +206,7 @@ function Buffer:show(show)
     -- end
 end
 
+--- Removes every mark and its extmarks.
 function Buffer:clear()
     -- Drop the extmarks as well, otherwise they stay attached to the buffer
     -- forever (only the Lua table holding their ids is discarded).
@@ -181,6 +227,7 @@ function Buffer:clear()
 end
 
 do
+    ---@param opts {buf: integer}
     local function on_delete(opts)
         local bufnr = opts.buf
         if rawget(buffers, bufnr) ~= nil then
@@ -189,6 +236,7 @@ do
         end
     end
 
+    ---@param opts {buf: integer}
     local function on_cursor(opts)
         if not config.anticonceal then
             return
@@ -202,10 +250,13 @@ do
         end
     end
 
+    ---@param opts {buf: integer}
     local function on_mode_change(opts)
         local buffer = buffers[opts.buf]
-        local old_mode = vim.v.event.old_mode:sub(1, 1)
-        local mode = vim.v.event.new_mode:sub(1, 1)
+        ---@type table<string, string>
+        local event = vim.v.event
+        local old_mode = event.old_mode:sub(1, 1)
+        local mode = event.new_mode:sub(1, 1)
         if old_mode == mode then
             return
         end
@@ -248,6 +299,11 @@ do
 end
 
 -- TODO: This can be done once instead of every redraw
+---@param opts mdmath.MarkOpts
+---@param row integer 0-indexed
+---@param col integer 0-indexed
+---@return table[] extmarks
+---@return boolean multiline
 local function opts2extmark(opts, row, col)
     if opts.lines then
         local extmarks = {}
@@ -304,6 +360,9 @@ local function opts2extmark(opts, row, col)
     end
 end
 
+---@param opts mdmath.MarkOpts
+---@param row integer 0-indexed
+---@return {row: integer, data: table}|nil
 local function create_empty_virtual(opts, row)
     if not opts.lines then
         return nil
@@ -336,6 +395,7 @@ local function create_empty_virtual(opts, row)
     }
 end
 
+---@param visible boolean
 function Mark:_draw(visible)
     local row, col = unpack(self.pos)
 
@@ -361,6 +421,9 @@ function Mark:_draw(visible)
     end
 end
 
+--- Re-draws the mark if its rendered state differs from the requested one.
+---@param hidden boolean|nil hide without changing `visible`
+---@return boolean redrawn
 function Mark:flush(hidden)
     local visible = not hidden and self.visible
     if visible ~= self.render_visible then
@@ -379,11 +442,19 @@ end
 
 local M = {}
 
+---@param bufnr integer 0 means the current buffer
+---@param show boolean|nil
 function M.show(bufnr, show)
-    show = show == nil and true or show
+    show = show == nil or show
     buffers[bufnr]:show(show)
 end
 
+--- Adds a mark over `(row, col)`; `opts.color` may be a raw 24-bit id.
+---@param bufnr integer 0 means the current buffer
+---@param row integer 0-indexed
+---@param col integer 0-indexed
+---@param opts mdmath.MarkOpts
+---@return integer|nil id
 function M.add(bufnr, row, col, opts)
     bufnr = bufnr == 0 and nvim.get_current_buf() or bufnr
 
@@ -399,6 +470,8 @@ function M.add(bufnr, row, col, opts)
     return buffers[bufnr]:add(mark)
 end
 
+---@param bufnr integer|nil 0/nil means the current buffer
+---@param id integer
 function M.remove(bufnr, id)
     local buffer = rawget(buffers, bufnr)
     if buffer then
@@ -406,6 +479,7 @@ function M.remove(bufnr, id)
     end
 end
 
+---@param bufnr integer|nil 0/nil means the current buffer
 function M.clear(bufnr)
     bufnr = bufnr or nvim.get_current_buf()
     buffers[bufnr]:clear()

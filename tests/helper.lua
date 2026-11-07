@@ -1,6 +1,7 @@
 -- Shared harness for the headless specs.
 --
 -- Every spec runs in its own Neovim process: `mdmath.setup()` may only run once
+---@diagnostic disable: duplicate-set-field
 -- per process (options are read when modules load, then frozen), and several
 -- specs need different options.
 --
@@ -71,7 +72,7 @@ function M.has_injection_query()
 
     local found = false
     local ok, parser = pcall(vim.treesitter.get_parser, bufnr, 'markdown')
-    if ok then
+    if ok and parser then
         -- Without a range Neovim 0.12 skips injection processing entirely.
         found = pcall(parser.parse, parser, { 0, 1 }) and parser:children()['markdown_inline'] ~= nil
     end

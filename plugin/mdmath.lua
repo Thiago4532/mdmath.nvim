@@ -10,6 +10,7 @@ if not vim.g.mdmath_disable_auto_setup and vim.v.vim_did_enter ~= 1 then
     })
 end
 
+---@type string[]
 local subcommands = {
     'enable', 'disable', 'clear', 'build'
 }

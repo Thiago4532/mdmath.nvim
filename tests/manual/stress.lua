@@ -1,4 +1,6 @@
 -- Stress/diagnostic harness for mdmath.nvim.
+-- The stubs below deliberately replace module functions more than once.
+---@diagnostic disable: duplicate-set-field
 --
 -- Drives the render pipeline over the manual test document with a real cell
 -- size, repeatedly changing the viewport, and checks that every equation that
@@ -96,7 +98,7 @@ vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
 vim.bo[bufnr].filetype = 'markdown'
 
 -- Expected equations: every latex_block overlapping the given viewport.
-local parser = vim.treesitter.get_parser(bufnr, 'markdown')
+local parser = assert(vim.treesitter.get_parser(bufnr, 'markdown'))
 -- `parse()` without a range does not process injections on 0.12, so the
 -- `markdown_inline` child would be missing and every expectation would be zero.
 parser:parse({0, #lines})

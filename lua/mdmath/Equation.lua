@@ -9,12 +9,34 @@ local tracker = require'mdmath.tracker'
 local terminfo = require'mdmath.terminfo'
 local config = require'mdmath.config'.opts
 
+---@class mdmath.EquationOpts
+---@field color string|nil
+
+--- One rendered (or pending) equation of a buffer.
+---@class mdmath.Equation
+---@field bufnr integer
+---@field pos mdmath.Position tracked source range, kept in sync with edits
+---@field text string source text as captured by the query
+---@field equation string `text` without the surrounding `$`
+---@field color string `#rrggbb`
+---@field width integer display width in cells
+---@field lines string[]|nil source lines for block equations
+---@field lines_width integer[]|nil display width of each source line
+---@field valid boolean false once invalidated; late callbacks are dropped
+---@field created boolean whether a mark was actually added
+---@field mark_id integer|nil
+---@field image mdmath.Image|nil
+---@field _init fun(self: mdmath.Equation, bufnr: integer, row: integer, col: integer, text: string, opts: mdmath.EquationOpts|nil): false|nil
+---@field new fun(bufnr: integer, row: integer, col: integer, text: string, opts: mdmath.EquationOpts|nil): mdmath.Equation?
 local Equation = util.class 'Equation'
 
 function Equation:__tostring()
     return '<Equation>'
 end
 
+--- Turns a processor response into a mark (or an inline error message).
+---@param res mdmath.Processor.Result|nil
+---@param err string|nil
 function Equation:_create(res, err)
     if not res then
         local text = ' ' .. err
@@ -112,6 +134,7 @@ function Equation:_create(res, err)
     end
 end
 
+---@return false|nil false when the equation cannot be tracked or is malformed
 function Equation:_init(bufnr, row, col, text, opts)
     local color = opts and opts.color or config.foreground
 
@@ -141,12 +164,14 @@ function Equation:_init(bufnr, row, col, text, opts)
 
     self.bufnr = bufnr
     -- TODO: pos should be shared with the mark
-    self.pos = tracker.add(bufnr, row, col, text:len())
-    if not self.pos then
+    local pos = tracker.add(bufnr, row, col, text:len())
+    if not pos then
         -- Buffer is not tracked (e.g. `buf_attach` failed), nothing to render.
         self.valid = false
         return false
     end
+    self.pos = pos
+
     self.pos.on_finish = function()
         self:invalidate()
     end
@@ -186,6 +211,7 @@ function Equation:_init(bufnr, row, col, text, opts)
 end
 
 -- TODO: should we call invalidate() on '__gc'?
+--- Cancels tracking and releases the mark and the image. Idempotent.
 function Equation:invalidate()
     if not self.valid then
         return

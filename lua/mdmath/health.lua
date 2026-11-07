@@ -9,6 +9,7 @@ local M = {}
 
 local health = vim.health
 
+---@return string
 local function plugin_root()
     return vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h:h')
 end
@@ -61,7 +62,7 @@ local function check_parsers()
 
     local injected = false
     local ok_parser, parser = pcall(vim.treesitter.get_parser, bufnr, 'markdown')
-    if ok_parser then
+    if ok_parser and parser then
         -- Without a range Neovim 0.12 does not process injections at all.
         local ok_parse = pcall(parser.parse, parser, { 0, 1 })
         injected = ok_parse and parser:children()['markdown_inline'] ~= nil
@@ -198,6 +199,7 @@ local function check_terminal()
     end
 end
 
+--- Runs every check section. Used by `:checkhealth mdmath`.
 function M.check()
     check_neovim()
     check_parsers()

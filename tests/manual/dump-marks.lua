@@ -18,11 +18,12 @@ local visible = {}
 local concealed = {}
 
 for _, m in ipairs(marks) do
-    local row, details = m[2], m[4]
-    if details.virt_text then
+    local row, details = m[2], m[4] or {}
+    local virt_text = details.virt_text
+    if virt_text and virt_text[1] then
         visible[#visible + 1] = {
             row = row,
-            overlay = vim.fn.strdisplaywidth(details.virt_text[1][1]),
+            overlay = vim.fn.strdisplaywidth(virt_text[1][1]),
         }
     else
         concealed[#concealed + 1] = {

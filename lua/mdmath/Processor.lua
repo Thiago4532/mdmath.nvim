@@ -24,8 +24,29 @@ local PROCESS_PATH = processor_dir .. '/src/processor.js'
 -- arrives) into an immediate, readable failure. Change both sides together.
 local PROTOCOL_VERSION = 1
 
+--- One rendered image, as described by the processor over the IPC wire.
+---@class mdmath.Processor.Result
+---@field width integer cells
+---@field height integer cells
+---@field data string absolute path of the PNG
+
+---@alias mdmath.Processor.Callback fun(res: mdmath.Processor.Result|nil, err: string|nil)
+
+---@class mdmath.Processor
+---@field callbacks table<string, mdmath.Processor.Callback>|nil nil once closed
+---@field pipes table<integer, uv.uv_pipe_t>
+---@field is_closing boolean
+---@field closed boolean
+---@field handle uv.uv_process_t|nil
+---@field err_buffer string[]
+---@field _assert fun(self: mdmath.Processor, condition: any, ...: any)
+---@field _init fun(self: mdmath.Processor)
+---@field new fun(): mdmath.Processor
 local Processor = util.class 'Processor'
 
+--- Raises a formatted error and closes the processor.
+---@param condition any falsy values abort
+---@param ... any message parts, concatenated
 function Processor:_assert(condition, ...)
     local message = table.concat(vim.iter({ ... }):flatten():totable())
     if not condition then
@@ -34,6 +55,11 @@ function Processor:_assert(condition, ...)
     end
 end
 
+---@param identifier string
+---@param data_type string
+---@param width integer
+---@param height integer
+---@param data string
 function Processor:_on_data(identifier, data_type, width, height, data)
     -- Data may arrive after `close()`, in which case there is nothing to dispatch to.
     if not self.callbacks then
@@ -68,16 +94,27 @@ end
 --     self:_assert(not err, 'failed to set foreground: ', err)
 -- end
 
+---@param scale number
 function Processor:setInternalScale(scale)
     local _, err = self.pipes[0]:write(string.format("0:iscale:%.2f:", scale))
     self:_assert(not err, 'failed to set internal scale: ', err)
 end
 
+---@param scale number
 function Processor:setDynamicScale(scale)
     local _, err = self.pipes[0]:write(string.format("0:dscale:%.2f:", scale))
     self:_assert(not err, 'failed to set dynamic scale: ', err)
 end
 
+--- Sends one equation to the renderer. Exactly one callback is invoked.
+---@param data string TeX source without the surrounding `$`
+---@param cell_width integer pixels
+---@param cell_height integer pixels
+---@param width integer cells
+---@param height integer cells
+---@param flags integer 0=none, 1=dynamic, 2=center, 3=dynamic+center
+---@param color string `#rrggbb`
+---@param callback mdmath.Processor.Callback
 function Processor:request(data, cell_width, cell_height, width, height, flags, color, callback)
     -- width/height should be number of cells
     -- flags: 0: none, 1: dynamic, 2: center, 3: dynamic + center
@@ -100,6 +137,7 @@ function Processor:request(data, cell_width, cell_height, width, height, flags, 
     self:_assert(not err, 'failed to request: ', err)
 end
 
+--- Reads the length-prefixed responses coming from the processor's stdout.
 function Processor:_listen()
     local separator = string.byte(':')
 
@@ -142,7 +180,7 @@ function Processor:_listen()
         elseif state == states.READING_WIDTH then
             if byte == separator then
                 local width_str = table.concat(buffer)
-                width = tonumber(width_str)
+                width = tonumber(width_str) --[[@as integer]]
                 self:_assert(width, "Invalid width: ", width_str)
                 buffer = {}
                 state = states.READING_HEIGHT
@@ -152,7 +190,7 @@ function Processor:_listen()
         elseif state == states.READING_HEIGHT then
             if byte == separator then
                 local height_str = table.concat(buffer)
-                height = tonumber(height_str)
+                height = tonumber(height_str) --[[@as integer]]
                 self:_assert(height, "Invalid height: ", height_str)
                 buffer = {}
                 state = states.READING_LENGTH
@@ -162,7 +200,7 @@ function Processor:_listen()
         elseif state == states.READING_LENGTH then
             if byte == separator then
                 local length_str = table.concat(buffer)
-                length = tonumber(length_str)
+                length = tonumber(length_str) --[[@as integer]]
                 self:_assert(length, "Invalid length: ", length_str)
                 buffer = {}
                 state = states.READING_DATA
@@ -191,6 +229,7 @@ function Processor:_listen()
     self:_assert(code == 0, 'failed to start reading from out pipe: ', err)
 end
 
+--- Spawns the node.js process and starts listening on its pipes.
 function Processor:_init()
     self.callbacks = {}
 
@@ -239,6 +278,7 @@ function Processor:_init()
     self:setDynamicScale(config.dynamic_scale)
 end
 
+--- Closes every pipe and the child process. Pending callbacks are dropped.
 function Processor:close()
     if self.closed or self.is_closing then
         return
@@ -259,6 +299,7 @@ function Processor:close()
     end
 end
 
+---@type mdmath.Processor|nil
 local processor = nil
 local ref_count = 0
 local buffers = {}
@@ -282,12 +323,16 @@ local function on_detach(_, bufnr)
     end
 end
 
+--- Shared processor for a buffer, spawning it on first use and ref-counting
+--- buffers so it is closed when the last one detaches.
+---@param bufnr integer 0 means the current buffer
+---@return mdmath.Processor
 function M.from_bufnr(bufnr)
     assert(type(bufnr) == 'number', 'bufnr is required')
     bufnr = bufnr == 0 and api.nvim_get_current_buf() or bufnr
 
     if buffers[bufnr] then
-        return processor
+        return assert(processor)
     end
 
     if ref_count == 0 then
@@ -309,9 +354,10 @@ function M.from_bufnr(bufnr)
         end
     end
 
-    return processor
+    return assert(processor)
 end
 
+--- Closes the processor and forgets every buffer (used on `VimLeave`).
 function M.stop_instance()
     for bufnr, _ in pairs(buffers) do
         if buffers[bufnr] then

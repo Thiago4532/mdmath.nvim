@@ -1,9 +1,14 @@
 local api = vim.api
 
+--- Lazily-created highlight group names for 24-bit image ids. `H[id]` returns
+--- the group name, creating it the first time it is asked for.
+---@type table<integer, string>
 local H = {}
 
 local HIGHLIGHT_NAME_PREFIX = '@mdmath-id-'
 
+---@param n any
+---@return boolean
 local function is_integer(n)
     return type(n) == 'number' and n == math.floor(n)
 end

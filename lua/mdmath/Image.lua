@@ -4,10 +4,11 @@ local diacritics = require'mdmath.Image.diacritics'
 
 -- Opened lazily: `uv.new_tty` fails when stdout is not a TTY (headless/CI), and
 -- this module is loaded as soon as `Equation` is required.
+---@type uv.uv_tty_t|false|nil
 local stdout = nil
 local warned_no_tty = false
 
----@return uv_tty|nil
+---@return uv.uv_tty_t|nil
 local function get_stdout()
     if stdout == nil then
         stdout = uv.new_tty(1, false) or false
@@ -34,10 +35,15 @@ local ID_SLOTS = 256
 local id_slot = 0
 local ids_swept = false
 
+--- Wraps an APC sequence so tmux forwards it (`allow-passthrough on`).
+---@param sequence string
+---@return string
 local function tmux_escape(sequence)
     return "\x1bPtmux;" .. sequence:gsub("\x1b", "\x1b\x1b") .. "\x1b\\"
 end
 
+---@param params table<string, string|integer>
+---@return string
 local function serialize(params)
     local tbl = {}
 
@@ -48,8 +54,9 @@ local function serialize(params)
     return table.concat(tbl, ",")
 end
 
----@param params table
+---@param params table<string, string|integer>
 ---@param encoded string|nil base64 payload
+---@return boolean
 local function write_sequence(params, encoded)
     local out = get_stdout()
     if not out then
@@ -77,6 +84,9 @@ local function write_sequence(params, encoded)
     return true
 end
 
+---@param params table<string, string|integer>
+---@param payload string|nil raw bytes to transmit
+---@return boolean
 local function kitty_send(params, payload)
     if not params.q then
         params.q = 2
@@ -114,6 +124,9 @@ end
 -- partial write cannot easily split it.
 local CHUNK_SIZE = 1536
 
+---@param params table<string, string|integer>
+---@param data string raw PNG bytes
+---@return boolean
 local function kitty_send_data(params, data)
     local total = #data
     if total == 0 then
@@ -146,6 +159,7 @@ local function kitty_send_data(params, data)
     return true
 end
 
+---@type 'file'|'direct'|nil
 local transfer_mode = nil
 
 -- File transmission writes a ~60 byte sequence (the PNG path) per image. Direct
@@ -156,20 +170,22 @@ local transfer_mode = nil
 -- corrupting and nondeterministic (more chunks, bigger image, higher chance).
 -- So `file` is the default everywhere; `direct` is opt-in for terminals that
 -- cannot read a file path.
+---@return 'file'|'direct'
 local function get_transfer_mode()
     if transfer_mode then
         return transfer_mode
     end
 
     local mode = require'mdmath.config'.opts.transfer
-    if mode == 'auto' then
-        mode = 'file'
-    end
+    -- `auto` resolves to `file`: a path-based transfer is the only reliable one.
+    transfer_mode = mode == 'direct' and 'direct' or 'file'
 
-    transfer_mode = mode
-    return mode
+    return transfer_mode
 end
 
+---@param path string
+---@return string|nil data
+---@return string|nil err
 local function read_file(path)
     local fd, open_err = uv.fs_open(path, 'r', 438)
     if not fd then
@@ -192,6 +208,13 @@ local function read_file(path)
     return data
 end
 
+--- A virtual placement (`U=1`) of one PNG, addressed by a fixed id ring.
+---@class mdmath.Image
+---@field id integer|nil nil once closed
+---@field rows integer
+---@field cols integer
+---@field _init fun(self: mdmath.Image, rows: integer, cols: integer, payload: string): false|nil
+---@field new fun(rows: integer, cols: integer, payload: string): mdmath.Image?
 local Image = util.class 'Image'
 
 function Image:__tostring()
@@ -249,10 +272,16 @@ function Image:_init(rows, cols, payload)
     end
 end
 
+--- Placeholder cell for (row, col); the diacritics carry the cell coordinates.
+---@param row integer 1-indexed
+---@param col integer 1-indexed
+---@return string
 function Image.unicode_at(row, col)
     return '\u{10EEEE}' .. diacritics[row] .. diacritics[col]
 end
 
+--- One placeholder string per image row.
+---@return string[]
 function Image:text()
     local text = {}
     for row = 1, self.rows do
@@ -265,10 +294,13 @@ function Image:text()
     return text
 end
 
+--- The image id doubles as the placeholder foreground colour.
+---@return integer
 function Image:color()
     return self.id -- Color is represented by the id
 end
 
+--- Deletes the image (and its placements) from the terminal. Idempotent.
 function Image:close()
     if not self.id then
         return

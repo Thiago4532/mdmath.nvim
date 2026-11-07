@@ -19,10 +19,15 @@ local KNOWN_UNSUPPORTED = {
     ['vscode'] = 'the VS Code/Cursor terminal does not implement the kitty graphics protocol',
 }
 
---- @param env table<string, string|nil>
---- @return boolean supported
---- @return string reason
---- @return boolean confident
+---@class mdmath.capability.Env
+---@field TERM string|nil
+---@field TERM_PROGRAM string|nil
+---@field KITTY_WINDOW_ID string|nil
+
+---@param env mdmath.capability.Env
+---@return boolean supported
+---@return string reason
+---@return boolean confident
 function M.classify(env)
     local term = (env.TERM or ''):lower()
     local program = env.TERM_PROGRAM or ''
@@ -51,9 +56,9 @@ function M.classify(env)
     return true, 'unrecognised terminal (' .. name .. '), assuming Unicode placeholders work', false
 end
 
---- @return boolean supported
---- @return string reason
---- @return boolean confident
+---@return boolean supported
+---@return string reason
+---@return boolean confident
 function M.supports_placeholders()
     if vim.g.mdmath_force_placeholders then
         return true, 'forced by vim.g.mdmath_force_placeholders', true

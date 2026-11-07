@@ -1,8 +1,26 @@
 local nvim = require'mdmath.nvim'
 local util = require'mdmath.util'
 
+--- A tracked source range, updated from `on_bytes` events. Position is stored
+--- as `(row, col)` plus a byte offset and length so edits above it can shift it
+--- without recomputing from the buffer.
+---@class mdmath.Position
+---@field [1] integer row, 0-indexed
+---@field [2] integer col, 0-indexed
+---@field offset integer byte offset
+---@field length integer byte length
+---@field on_finish fun()|nil
+---@field cancel fun(self: mdmath.Position)
+
+---@class mdmath.tracker.Buffer
+---@field bufnr integer
+---@field attached boolean
+---@field positions table<integer, mdmath.Position>
+
+---@type table<integer, mdmath.tracker.Buffer>
 local buffers = {}
 
+---@param pos mdmath.Position
 local function cancel_pos(pos)
     pos[1] = nil
     pos[2] = nil
@@ -11,6 +29,7 @@ local function cancel_pos(pos)
     pos.on_finish = nil
 end
 
+---@param pos mdmath.Position
 local function clear_pos(pos)
     if pos.on_finish then
         pos.on_finish()
@@ -19,6 +38,17 @@ local function clear_pos(pos)
     cancel_pos(pos)
 end
 
+--- Applies one `on_bytes` delta to a position.
+---@param pos mdmath.Position
+---@param sr integer start row of the change, 0-indexed
+---@param sc integer start col of the change, 0-indexed
+---@param soff integer start byte offset of the change
+---@param oer integer old end row (absolute)
+---@param oec integer old end col (absolute unless `oer == sr`)
+---@param oeoff integer old end byte offset (absolute)
+---@param er integer new end row (absolute)
+---@param ec integer new end col (absolute unless `er == sr`)
+---@param eoff integer new end byte offset (absolute)
 local function update_pos(pos, sr, sc, soff, oer, oec, oeoff, er, ec, eoff)
     local offset = pos.offset
     local length = pos.length
@@ -46,6 +76,8 @@ local function update_pos(pos, sr, sc, soff, oer, oec, oeoff, er, ec, eoff)
     pos.offset = offset
 end
 
+---@param buf mdmath.tracker.Buffer
+---@return mdmath.tracker.Buffer|nil
 local function attach(buf)
     if buf.attached then
         return buf
@@ -130,6 +162,13 @@ setmetatable(buffers, {
 
 local M = {}
 
+--- Registers a position. Pass `row_end`/`col_end` for a multi-line range.
+---@param bufnr integer 0 means the current buffer
+---@param row integer 0-indexed
+---@param col integer 0-indexed
+---@param row_end integer|nil
+---@param col_end integer|nil
+---@return mdmath.Position|nil nil when the buffer cannot be tracked
 function M.add(bufnr, row, col, row_end, col_end)
     local buffer = buffers[bufnr]
     if not buffer then

@@ -1,10 +1,17 @@
 local api = vim.api
 
+--- Public module entry point.
+---@class mdmath
+---@field version string
+---@field is_loaded boolean
 local M = {}
 
 M.version = require'mdmath.version'
 M.is_loaded = false
 
+--- Enables the plugin and registers the `FileType` autocmd. Calling it again
+--- only errors when options are passed a second time.
+---@param opts mdmath.Opts|false|nil
 function M.setup(opts)
     if M.is_loaded then
         if opts then
@@ -50,6 +57,7 @@ function M.setup(opts)
     end
 end
 
+---@param bufnr integer|nil defaults to the current buffer
 function M.enable(bufnr)
     if not M.is_loaded then
         M.setup(false)
@@ -57,6 +65,7 @@ function M.enable(bufnr)
     require 'mdmath.overlay'.enable(bufnr or 0)
 end
 
+---@param bufnr integer|nil defaults to the current buffer
 function M.disable(bufnr)
     if not M.is_loaded then
         M.setup(false)
@@ -64,6 +73,8 @@ function M.disable(bufnr)
     require 'mdmath.overlay'.disable(bufnr or 0)
 end
 
+--- Re-renders every equation of the buffer.
+---@param bufnr integer|nil defaults to the current buffer
 function M.clear(bufnr)
     if not M.is_loaded then
         M.setup(false)
@@ -71,6 +82,7 @@ function M.clear(bufnr)
     require 'mdmath.overlay'.clear(bufnr or 0)
 end
 
+--- Installs the node.js renderer dependencies (`npm install`).
 function M.build()
     require'mdmath.build'.build()
 end

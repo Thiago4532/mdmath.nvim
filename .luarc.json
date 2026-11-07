@@ -1,0 +1,8 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime.version": "LuaJIT",
+  "workspace.checkThirdParty": false,
+  "workspace.ignoreDir": ["mdmath-js/node_modules"],
+  "workspace.library": ["${env:VIMRUNTIME}"],
+  "diagnostics.globals": ["vim"]
+}

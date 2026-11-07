@@ -1,3 +1,16 @@
+--- Plugin options. Every field is filled in by `config.set_opts()`.
+---@class mdmath.Opts
+---@field filetypes string[]
+---@field foreground string
+---@field anticonceal boolean
+---@field hide_on_insert boolean
+---@field dynamic boolean
+---@field dynamic_scale number
+---@field internal_scale number
+---@field update_interval integer
+---@field transfer 'auto'|'file'|'direct'
+
+---@type mdmath.Opts
 local default_opts = {
     -- Filetypes that the plugin will be enabled by default.
     filetypes = {'markdown'},
@@ -31,12 +44,19 @@ local default_opts = {
     transfer = 'auto',
 }
 
+---@type mdmath.Opts|nil
 local _opts = nil
 -- The read-only proxy handed out by `M.opts`. Kept in a local instead of a field
 -- on `M`: a table field would be writable (`config.opts = {}` bypasses
 -- `__newindex`, which only fires for missing keys).
+---@type mdmath.Opts|nil
 local readonly_opts = nil
 
+--- Module table of the configuration singleton. `opts` is served through the
+--- metatable below, so it is absent from the underlying table.
+---@class mdmath.config
+---@field opts mdmath.Opts
+---@field validated boolean
 local M = {
     validated = false,
 }
@@ -61,6 +81,7 @@ local mt = {
     end,
 }
 
+--- Type-checks and freezes the options. Called on the first `opts` access.
 function M.validate()
     if M.validated then
         return
@@ -105,6 +126,9 @@ function M.validate()
         __metatable = false,
     })
 
+    -- The option is not part of `mdmath.Opts`: it was removed, and reading it is
+    -- only there to warn users of the old spelling.
+    ---@diagnostic disable-next-line: undefined-field
     if opts.scale then
         vim.schedule(function()
             vim.notify('mdmath.nvim: `scale` option was removed, check `dynamic_scale` and `internal_scale`.', vim.log.levels.WARN)
@@ -115,6 +139,8 @@ function M.validate()
     readonly_opts = readonly
 end
 
+--- Stores the user options merged over the defaults. Only valid once.
+---@param opts mdmath.Opts|false|nil
 function M.set_opts(opts)
     if _opts then
         error 'Attempt to configure mdmath.nvim opts multiple times (how did you even do that?)'

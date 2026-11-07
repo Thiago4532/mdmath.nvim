@@ -5,6 +5,15 @@ local M = {}
 local plugin_dir = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
 local build_dir = plugin_dir .. '/mdmath-js'
 
+--- Callbacks used to report progress; `build()` is callback-based because the
+--- npm child process is asynchronous.
+---@class mdmath.build.Listeners
+---@field on_log fun(msg: string)
+---@field on_error fun(msg: string)
+---@field on_done fun()
+
+--- Runs `npm install` inside `mdmath-js`.
+---@param L mdmath.build.Listeners
 local function build(L)
     -- TODO: Check if build_dir exists
 
@@ -26,7 +35,7 @@ local function build(L)
         stdio = {nil, nil, stderr},
         cwd = build_dir,
     }, function(code)
-        handle:close()
+        assert(handle):close()
         stderr:close()
         if code ~= 0 then
             local msg = table.concat(err_msg)
@@ -49,6 +58,7 @@ local function build(L)
     end)
 end
 
+--- `:MdMath build`: installs the node.js dependencies, reporting via messages.
 function M.build()
     local success = true
     return build {
@@ -69,7 +79,7 @@ function M.build()
     }
 end
 
--- Build function to be used in lazy.nvim
+-- Build function to be used in lazy.nvim (it yields until npm finishes).
 function M.build_lazy()
     local message = nil
     local done = false

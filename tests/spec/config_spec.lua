@@ -1,4 +1,6 @@
 -- Options: defaults, freezing, colour resolution and cell-size fallbacks.
+-- `terminfo.size` is stubbed twice, once per fallback case.
+---@diagnostic disable: duplicate-set-field
 
 local root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h:h')
 local t = dofile(root .. '/tests/helper.lua')
@@ -18,9 +20,11 @@ t.ok(not pcall(function()
     opts.dynamic = false
 end), 'writing an existing option is rejected')
 t.ok(not pcall(function()
+    ---@diagnostic disable-next-line: inject-field
     opts.some_new_option = 1
 end), 'writing an unknown option is rejected')
 t.ok(not pcall(function()
+    ---@diagnostic disable-next-line: missing-fields
     config.opts = {}
 end), 'replacing the options table is rejected')
 

@@ -27,8 +27,17 @@ struct mdmath_winsize
 int ioctl(int fd, unsigned long op, ...);
 ]]
 
+--- Kernel `struct winsize` as returned by `TIOCGWINSZ`.
+---@class mdmath._system.winsize_t
+---@field ws_row integer
+---@field ws_col integer
+---@field ws_xpixel integer
+---@field ws_ypixel integer
+
+---@return mdmath.Winsize|nil size
+---@return integer|nil errno
 function M.request_size()
-    local ws = ffi.new 'struct mdmath_winsize'
+    local ws = ffi.new('struct mdmath_winsize') --[[@as mdmath._system.winsize_t]]
     if ffi.C.ioctl(1, TIOCGWINSZ, ws) < 0 then
         return nil, ffi.errno()
     end

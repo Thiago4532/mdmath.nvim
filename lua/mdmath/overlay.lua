@@ -9,15 +9,26 @@ local capability = require'mdmath.capability'
 local augroup = nvim.create_augroup('MdMathManager', {clear = true})
 
 local M = {}
+---@type table<integer, mdmath.overlay.Buffer>
 local buffers = {}
 
+---@class mdmath.overlay.Buffer
+---@field bufnr integer
+---@field equations mdmath.Equation[]
+---@field parser vim.treesitter.LanguageTree
+---@field active boolean
+---@field timer uv.uv_timer_t
+---@field _init fun(self: mdmath.overlay.Buffer, bufnr: integer)
+---@field new fun(bufnr: integer): mdmath.overlay.Buffer
 local Buffer = util.class 'Buffer'
 
 local INLINE_LANG = 'markdown_inline'
+---@type vim.treesitter.Query|nil
 local inline_query = nil
 
 -- Compiling the query on every parse tick is wasteful; it only depends on the
 -- language, never on the buffer.
+---@return vim.treesitter.Query
 local function get_inline_query()
     if not inline_query then
         inline_query = vim.treesitter.query.parse(INLINE_LANG, '(latex_block) @block')
@@ -26,6 +37,9 @@ local function get_inline_query()
 end
 
 -- FIX: Temporary workaround before NeoVim 0.12
+---@param bufnr integer
+---@param lang string
+---@return vim.treesitter.LanguageTree
 local function get_parser(bufnr, lang)
     local parser = ts.get_parser(bufnr, lang)
     if not parser then
@@ -40,8 +54,7 @@ function Buffer:_init(bufnr)
     self.equations = {}
     self.parser = get_parser(bufnr, 'markdown')
     self.active = true
-    self.timer = uv.new_timer()
-    assert(self.timer, 'failed to create a timer')
+    self.timer = assert(uv.new_timer(), 'failed to create a timer')
 
     self:attach()
 
@@ -63,6 +76,7 @@ function Buffer:_init(bufnr)
     self:parse_view()
 end
 
+---@param reset boolean|nil restart the update timer
 function Buffer:clear(reset)
     for _, eq in ipairs(self.equations) do
         eq:invalidate()
@@ -74,6 +88,7 @@ function Buffer:clear(reset)
     end
 end
 
+--- Stops parsing and drops every equation of the buffer. Idempotent.
 function Buffer:free()
     if not self.active then
         return
@@ -92,12 +107,14 @@ function Buffer:free()
     }
 end
 
+--- Debounces `parse_view()` by `update_interval`.
 function Buffer:reset_timer()
     self.timer:start(config.update_interval, 0, vim.schedule_wrap(function()
         return self:parse_view()
     end))
 end
 
+--- Listens for edits and detaches.
 function Buffer:attach()
     nvim.buf_attach(self.bufnr, false, {
         on_lines = function()
@@ -112,11 +129,16 @@ function Buffer:attach()
     })
 end
 
+--- Parses the currently visible window range.
 function Buffer:parse_view()
     local start_row, end_row = util.get_current_view()
     self:parse(start_row, end_row)
 end
 
+--- Rebuilds `self.equations` for the range, reusing equations whose source range
+--- and text did not change and invalidating the ones that scrolled out.
+---@param start_row integer 0-indexed, inclusive
+---@param end_row integer 1-indexed, exclusive
 function Buffer:parse(start_row, end_row)
     assert(type(start_row) == 'number', 'start_row must be a number')
     assert(type(end_row) == 'number', 'end_row must be a number')
@@ -131,13 +153,21 @@ function Buffer:parse(start_row, end_row)
     end
     local query = get_inline_query()
 
+    --- `0` marks an equation that was already claimed by this pass.
+    ---@type (mdmath.Equation|0)[]
     local old_equations = self.equations
     local equations = {}
 
+    ---@param sr integer
+    ---@param sc integer
+    ---@param er integer
+    ---@param ec integer
+    ---@param text string
     local function process_equation(sr, sc, er, ec, text)
         -- FIXME: Iterating over all equations is not efficient, we can use a hash table
         local equation = nil
         for key, eq in ipairs(old_equations) do
+            -- `0` marks an equation that was already claimed by this pass.
             if eq ~= 0 and eq.valid and eq.pos[1] == sr and eq.pos[2] == sc and eq.text == text then
                 equation = eq
                 old_equations[key] = 0
@@ -151,6 +181,7 @@ function Buffer:parse(start_row, end_row)
         end
     end
 
+    ---@param tree TSTree
     local function get_queries(tree)
         local root = tree:root()
         local tsr, _, ter = root:range()
@@ -175,12 +206,15 @@ function Buffer:parse(start_row, end_row)
     inlines:for_each_tree(get_queries)
 
     for _, eq in ipairs(old_equations) do
-        if eq ~= 0 and eq.valid then
-            if (not eq.pos[1] or (start_row <= eq.pos[1] and eq.pos[1] < end_row)) then
-                eq:invalidate()
-            else
-                -- add equations out of the range
-                table.insert(equations, eq)
+        if eq ~= 0 then
+            ---@cast eq mdmath.Equation
+            if eq.valid then
+                if (not eq.pos[1] or (start_row <= eq.pos[1] and eq.pos[1] < end_row)) then
+                    eq:invalidate()
+                else
+                    -- add equations out of the range
+                    table.insert(equations, eq)
+                end
             end
         end
     end
@@ -188,6 +222,8 @@ function Buffer:parse(start_row, end_row)
     self.equations = equations
 end
 
+---@param bufnr integer
+---@return mdmath.overlay.Buffer|nil
 local function create_buffer(bufnr)
     if not nvim.buf_is_valid(bufnr) then
         return nil
@@ -200,6 +236,8 @@ end
 
 local warned_no_placeholders = false
 
+--- Enables rendering for a buffer, unless the terminal cannot show placeholders.
+---@param bufnr integer 0 means the current buffer
 function M.enable(bufnr)
     if bufnr == 0 then
         bufnr = nvim.get_current_buf()
@@ -229,6 +267,7 @@ function M.enable(bufnr)
     end
 end
 
+---@param bufnr integer 0 means the current buffer
 function M.disable(bufnr)
     if bufnr == 0 then
         bufnr = nvim.get_current_buf()
@@ -245,6 +284,8 @@ function M.disable_all()
     end
 end
 
+--- Re-parses the buffer (invalidates every equation it knows about).
+---@param bufnr integer 0 means the current buffer
 function M.clear(bufnr)
     if bufnr == 0 then
         bufnr = nvim.get_current_buf()

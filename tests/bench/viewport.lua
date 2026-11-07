@@ -34,7 +34,7 @@ vim.api.nvim_set_current_buf(bufnr)
 vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
 vim.bo[bufnr].filetype = 'markdown'
 
-local parser = vim.treesitter.get_parser(bufnr, 'markdown')
+local parser = assert(vim.treesitter.get_parser(bufnr, 'markdown'))
 parser:parse({ 0, #lines })
 
 local inlines = parser:children()['markdown_inline']

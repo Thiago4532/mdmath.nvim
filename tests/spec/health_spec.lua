@@ -6,7 +6,9 @@ local root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h:h')
 local t = dofile(root .. '/tests/helper.lua')
 t.bootstrap()
 
-local ok, err = pcall(vim.cmd, 'checkhealth mdmath')
+local ok, err = pcall(function()
+    vim.cmd('checkhealth mdmath')
+end)
 t.ok(ok, 'checkhealth mdmath runs (' .. tostring(err) .. ')')
 
 local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)

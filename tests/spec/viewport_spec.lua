@@ -1,5 +1,6 @@
 -- Regression: a block whose opening fence sits above the viewport must still be
 -- captured while any part of it is visible.
+---@diagnostic disable: duplicate-set-field
 --
 -- The old implementation passed the viewport to `iter_captures`, which filters
 -- by capture *start* row: the block was skipped, no Equation was created, and it

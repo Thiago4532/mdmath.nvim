@@ -1,6 +1,7 @@
 -- A terminal that implements Kitty graphics but not Unicode placeholders must not
 -- get placeholder glyphs: the plugin keeps the source text and warns once.
 -- `vim.g.mdmath_force_placeholders` overrides the detection.
+---@diagnostic disable: duplicate-set-field
 
 local root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h:h')
 local t = dofile(root .. '/tests/helper.lua')
