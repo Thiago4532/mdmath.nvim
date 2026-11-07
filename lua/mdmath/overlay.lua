@@ -4,6 +4,7 @@ local ts = vim.treesitter
 local uv = vim.uv
 local Equation = require'mdmath.Equation'
 local config = require'mdmath.config'.opts
+local capability = require'mdmath.capability'
 
 local augroup = nvim.create_augroup('MdMathManager', {clear = true})
 
@@ -197,11 +198,29 @@ local function create_buffer(bufnr)
     return buf
 end
 
+local warned_no_placeholders = false
+
 function M.enable(bufnr)
     if bufnr == 0 then
         bufnr = nvim.get_current_buf()
     end
     if buffers[bufnr] then
+        return
+    end
+
+    local supported, reason, confident = capability.supports_placeholders()
+    if confident and not supported then
+        -- Placeholders are the only text-anchored placement mechanism in the
+        -- protocol. Without them the plugin would hide the source text and print
+        -- placeholder characters the terminal renders as tofu, so do nothing but
+        -- explain once.
+        if not warned_no_placeholders then
+            warned_no_placeholders = true
+            vim.schedule(function()
+                vim.notify('mdmath.nvim: ' .. reason .. '\nEquations stay as source text. '
+                    .. 'Run :checkhealth mdmath for details.', vim.log.levels.WARN)
+            end)
+        end
         return
     end
 

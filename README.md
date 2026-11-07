@@ -13,14 +13,18 @@ https://github.com/user-attachments/assets/bcfab0d2-60fb-4e8a-9402-2be62a5504f6
   - `npm`
   - ImageMagick v6/v7
   - `rsvg-convert` (from librsvg)
-  - Linux/MacOS (not tested in MacOS, please open an issue if you are able to test it)
+  - Linux/MacOS (tested on macOS 26)
 
-You also need a terminal emulator that supports [Kitty Graphics Protocol#Unicode Placeholders](https://sw.kovidgoyal.net/kitty/graphics-protocol/#unicode-placeholders), the following terminals were tested.
+You also need a terminal emulator that supports the [Kitty graphics protocol with Unicode placeholders](https://sw.kovidgoyal.net/kitty/graphics-protocol/#unicode-placeholders). Images are anchored to text cells; terminals that implement the protocol but not placeholders cannot display them.
+
   - [x] Kitty `>=0.28.0`
-  - [ ] Konsole (missing support for Unicode Placeholders)
-  - [ ] WezTerm (missing support for Unicode Placeholders)
+  - [x] Ghostty `>=1.0`
+  - [ ] WezTerm (kitty graphics without Unicode placeholders, upstream wezterm#7924)
+  - [ ] Konsole (kitty graphics without Unicode placeholders)
 
-After some refactoring, I want to implement a fallback for terminals that support Kitty Graphics Protocol but doesn't support Unicode Placeholders.
+On these terminals the plugin keeps the equation source visible instead of printing placeholder characters, and warns once. `:checkhealth mdmath` reports how the terminal was classified; `vim.g.mdmath_force_placeholders = 1` overrides it for a terminal that gained support later.
+
+A transparent fallback is blocked upstream: the protocol can only anchor a placement to the cursor cell, and a TUI cannot move the terminal cursor without corrupting its own output.
 
 ### Installation
 
@@ -117,7 +121,8 @@ field order or meaning, bump `PROTOCOL_VERSION` in both `lua/mdmath/Processor.lu
 ## Looking to the future!
 
 The plugin is currently at alpha, many features are planned for the next versions, here are some of the planned features, also you have any suggestions, feel free to open an issue:
-  - [ ] Support Kitty Graphics Protocol without Unicode Placeholders.
+  - [x] Detect terminals without Unicode placeholders and keep the source text visible
+  - [ ] Support Kitty Graphics Protocol without Unicode Placeholders (blocked upstream, see above)
   - [ ] An API to generate equation images.
   - [ ] Render in floating windows
   - [ ] Render out-of-line

@@ -164,6 +164,17 @@ local function check_terminal()
             'Run Neovim in a terminal that supports the Kitty graphics protocol.')
     end
 
+    local supported, reason, confident = require'mdmath.capability'.supports_placeholders()
+    if supported then
+        health.ok('Unicode placeholders: ' .. reason)
+    else
+        health.error('terminal cannot display equations: ' .. reason,
+            'Equations stay as source text. See the README terminal list.')
+    end
+    if not confident then
+        health.warn('terminal support was not confirmed', reason)
+    end
+
     local ok_size, size = pcall(require'mdmath.terminfo'.size)
     if ok_size and size and size.xpixel > 0 and size.ypixel > 0 then
         health.ok(string.format('cell size %dx%d px, %dx%d cells',
