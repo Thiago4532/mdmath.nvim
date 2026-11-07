@@ -433,6 +433,11 @@ do
                     if top <= lrow and frow <= bot then
                         mark:flush(not buffer._show)
                     end
+                else
+                    -- The tracked position was cancelled (buffer detached or a
+                    -- tracker clear that did not go through `on_finish`). Drop the
+                    -- mark instead of leaving it in the registry forever.
+                    mark:remove()
                 end
             end
             return false
