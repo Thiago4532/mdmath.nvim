@@ -102,6 +102,8 @@ Currently, it only supports rendering the image inline, features like rendering 
 
 If you are using TMUX, remember to enable `allow-passthrough` in your `~/.tmux.conf`.
 
+The full reference — every option, terminal support, the render pipeline and the IPC wire format — is available offline as `:help mdmath`.
+
 ## Development
 
 ```sh
@@ -126,8 +128,6 @@ Releases are cut by pushing a `v*` tag: the `Release` workflow publishes a GitHu
 
 The plugin is at alpha. Remaining work, ordered by implementation effort (smallest first):
 
-  - [ ] Refactoring: LuaCATS annotations — mechanical, no behaviour change
-  - [ ] Documentation — usage, configuration, protocol notes
   - [ ] An API to generate equation images — wrap `Processor`/`Image` in a callback-based Lua API; needs tests for cache hits and error responses
   - [ ] Render in floating windows — requires a renderer that hosts the placeholder cells in a scratch buffer instead of the source buffer; window lifecycle is the risky part
   - [ ] Render out-of-line — preview pane plus scroll synchronisation
@@ -135,6 +135,8 @@ The plugin is at alpha. Remaining work, ordered by implementation effort (smalle
 
 Done:
 
+  - [x] Refactoring: LuaCATS annotations
+  - [x] Documentation — `:help mdmath` covers usage, options, terminal support and protocol notes
   - [x] Dynamic width and height
   - [x] `:checkhealth`
   - [x] Detect terminals without Unicode placeholders and keep the source text visible

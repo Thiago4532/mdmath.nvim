@@ -1,0 +1,296 @@
+*mdmath.txt*  Equation previews inside Neovim                  *mdmath* *mdmath.nvim*
+
+mdmath.nvim renders Markdown equations ($...$ and $$...$$) as images inside the
+buffer, using the Kitty Graphics Protocol with Unicode placeholders.
+
+                                                       *mdmath-version*
+This help file documents version 0.1.0. The plugin is alpha: the Lua API and the
+wire format may change between minor versions.
+
+==============================================================================
+CONTENTS                                                    *mdmath-contents*
+
+  1. Introduction ..................................... |mdmath-intro|
+  2. Requirements ..................................... |mdmath-requirements|
+  3. Setup ............................................ |mdmath-setup|
+  4. Commands ......................................... |mdmath-commands|
+  5. Options .......................................... |mdmath-options|
+  6. Terminals ........................................ |mdmath-terminals|
+  7. How it works ..................................... |mdmath-protocol|
+  8. Troubleshooting .................................. |mdmath-troubleshooting|
+  9. Development ...................................... |mdmath-development|
+
+==============================================================================
+1. INTRODUCTION                                             *mdmath-intro*
+
+The plugin parses `markdown` buffers with Tree-sitter, finds `latex_block`
+captures in the injected `markdown_inline` trees, renders each equation through
+MathJax, and replaces the source text with an image placed on the placeholder
+cells of the equation.
+
+Only the viewport is parsed: equations outside the current window are dropped
+and re-created when they scroll back in. Rendering happens off the main thread
+in a Node.js child process, so typing is never blocked by MathJax.
+
+The source text is kept in the buffer: images are extmark overlays, so a
+disabled plugin, a terminal without placeholder support, or a buffer closed
+while rendering all degrade to plain Markdown.
+
+==============================================================================
+2. REQUIREMENTS                                         *mdmath-requirements*
+
+  - Neovim >= 0.10
+  - Tree-sitter parsers `markdown` and `markdown_inline`
+  - Node.js >= 18, with `npm` for `:MdMath build`
+  - ImageMagick v6 (`convert`, `identify`) or v7 (`magick`)
+  - rsvg-convert (librsvg)
+  - Linux or macOS
+
+Use |:checkhealth| (`:checkhealth mdmath`) to verify all of the above. It also
+reports how the terminal was classified.
+
+The parser can come from nvim-treesitter or from a manual install; it only has
+to be loaded before the plugin. nvim-treesitter is also what ships the
+`markdown` injection query that produces `markdown_inline` trees — without it
+the plugin silently renders nothing, which is why |:checkhealth| parses a
+sample equation instead of just checking that the parser loads.
+
+==============================================================================
+3. SETUP                                                    *mdmath-setup*
+
+With lazy.nvim: >lua
+
+  {
+      'ApexGP/mdmath.nvim',
+      dependencies = { 'nvim-treesitter/nvim-treesitter' },
+      opts = {},
+  }
+<
+`opts` is optional. `:MdMath build` (or `require'mdmath'.build()`) installs the
+Node.js dependencies into `mdmath-js/`; lazy.nvim already runs the build step by
+default.
+
+If the plugin is loaded after startup, call `require'mdmath'.setup(opts)`
+yourself; `plugin/mdmath.lua` only auto-configures on |VimEnter|.
+
+Inside tmux, enable passthrough: >vim
+
+  set -g allow-passthrough on
+<
+Without it the escape sequences are swallowed and no image appears.
+
+==============================================================================
+4. COMMANDS                                              *mdmath-commands*
+
+                                                                *:MdMath*
+:MdMath enable          Enable the plugin for the current buffer.
+:MdMath disable         Disable it for the current buffer.
+:MdMath clear           Forget the current equations and re-render them.
+:MdMath build           Run `npm install` inside `mdmath-js`.
+
+`require'mdmath'` exposes the same operations as `enable()`, `disable()`,
+`clear()` and `build()`, plus `setup(opts)` and `version`.
+
+==============================================================================
+5. OPTIONS                                                *mdmath-options*
+
+Defaults: >lua
+
+  {
+      filetypes = { 'markdown' },
+      foreground = 'Normal',
+      anticonceal = true,
+      hide_on_insert = true,
+      dynamic = true,
+      dynamic_scale = 1.0,
+      internal_scale = 1.0,
+      update_interval = 400,
+      transfer = 'auto',
+  }
+<
+                                                            *mdmath-filetypes*
+`filetypes` (table)
+    Filetypes the plugin enables itself for.
+
+                                                           *mdmath-foreground*
+`foreground` (string)
+    Equation colour: a `#rrggbb` string or a highlight group name whose `fg` is
+    resolved by the Lua side. Invalid names raise an error instead of silently
+    rendering black.
+
+                                                          *mdmath-anticonceal*
+`anticonceal` (boolean)
+    Reveal the source text of the equation under the cursor.
+
+                                                        *mdmath-hide_on_insert*
+`hide_on_insert` (boolean)
+    Hide every equation while in Insert/Replace mode, so typing near a block is
+    not disturbed by images being redrawn.
+
+                                                            *mdmath-dynamic*
+`dynamic` (boolean)
+    Let block equations grow to their natural size instead of being squeezed
+    into the number of source lines. Inline equations are always one cell high.
+
+                                                       *mdmath-dynamic_scale*
+`dynamic_scale` (number)
+    Displayed scale of dynamic equations. Must be > 0.
+
+                                                      *mdmath-internal_scale*
+`internal_scale` (number)
+    Pixel density of the rendered PNG. Raise it for sharper images with large
+    fonts; it does not change the displayed size (see `dynamic_scale`). Must be
+    > 0. Higher values make rendering slower and images bigger.
+
+                                                     *mdmath-update_interval*
+`update_interval` (integer)
+    Debounce, in milliseconds, between a buffer change and the re-parse.
+
+                                                            *mdmath-transfer*
+`transfer` (string)
+    How the PNG reaches the terminal:
+      `auto`    resolves to `file` (recommended)
+      `file`    the terminal reads the PNG from disk (Kitty `t=f`)
+      `direct`  the PNG is base64-chunked over stdout (Kitty `t=d`)
+    `direct` is only for terminals that cannot read a file path. Its writes go
+    through a non-blocking tty and can be interleaved with Neovim's own output,
+    which corrupts the escape sequence and prints the payload as text.
+
+==============================================================================
+6. TERMINALS                                          *mdmath-terminals*
+
+Images are anchored to text cells with Unicode placeholders (U+10EEEE plus
+diacritics encoding row and column). A terminal that implements the Kitty
+graphics protocol but not placeholders cannot display the image at all: the
+protocol can only anchor a placement to the cursor cell, and a TUI cannot move
+the terminal cursor without corrupting its own output.
+
+  - Kitty >= 0.28                         supported
+  - Ghostty >= 1.0                        supported
+  - WezTerm                               not supported (wezterm#7924)
+  - Konsole                               not supported
+  - VS Code / Cursor terminal             not supported (no graphics protocol)
+
+Support is detected from `TERM`, `TERM_PROGRAM` and `KITTY_WINDOW_ID`. On a
+terminal classified as unsupported the plugin leaves the source text visible and
+warns once. An unknown terminal is assumed to work but reported as unconfirmed
+by |:checkhealth|.
+
+                                        *g:mdmath_force_placeholders*
+`g:mdmath_force_placeholders`
+    Set it to any truthy value to treat the terminal as supporting placeholders,
+    for a terminal that gained support after this list was written or that
+    reports an unusual `TERM`.
+
+                                                       *mdmath-no-tty-fallback*
+With no TTY on stdout (headless Neovim, output redirected) no image can be sent.
+The plugin warns once and keeps the source text; equations are not hidden.
+
+                                                         *mdmath-cell-size*
+The cell size in pixels comes from `TIOCGWINSZ`. Terminals that report 0 for
+the pixel dimensions (or where the ioctl fails) fall back to 8x16 px cells and
+warn once; images may look blurry or misaligned in that case. The cached size is
+refreshed on |VimResized|.
+
+==============================================================================
+7. HOW IT WORKS                                          *mdmath-protocol*
+
+  overlay.lua     finds equations in the viewport (Tree-sitter query)
+  Equation.lua    owns the source range, requests a render, places the mark
+  Processor.lua   one Node.js child process, shared by all buffers
+  processor.js    MathJax -> SVG -> rsvg-convert -> PNG -> ImageMagick
+  Image.lua       Kitty sequences, image ids, placeholder cells
+  marks.lua       extmarks that display the placeholder cells
+
+                                                      *mdmath-wire-format*
+The Lua client and the Node.js processor talk over stdin/stdout of the child
+process. Fields are separated by `:`, lengths are byte counts (UTF-8, not UTF-16
+code units):
+
+  request    identifier:request:flags:color:cell_width:width:cell_height:height:length:tex
+  image      identifier:image:width:height:length:path
+  error      identifier:error:0:0:length:message
+  iscale     identifier:iscale:value:
+  dscale     identifier:dscale:value:
+
+`flags` is a bit field: 1 = dynamic (block equations may grow), 2 = centre the
+image horizontally. `width`/`height` and `cell_width`/`cell_height` are cell
+counts and pixels respectively.
+
+                                                    *mdmath-PROTOCOL_VERSION*
+`PROTOCOL_VERSION` lives in both `lua/mdmath/Processor.lua` and
+`mdmath-js/src/processor.js`. The Lua side passes its value as the first argument
+of the child process; on a mismatch the processor exits with code 2 and explains
+itself on stderr. Change both sides together whenever the field order or meaning
+changes: previously such a drift produced a client that waited forever.
+
+                                                       *mdmath-image-cache*
+The processor caches renders in memory, keyed by the equation, cell size,
+requested cell width and height, flags, colour and both scales. The PNG file
+name is derived from a SHA-256 prefix of the equation, so identical equations
+share a file. Files live in `nvim-mdmath-<random>` under the system temporary
+directory and are deleted when the child process exits.
+
+                                                       *mdmath-image-ids*
+A placeholder cell's foreground colour carries the image id, so ids must fit in 24
+bits. The plugin uses a fixed ring (0xF00000 + 0..255) and sweeps the whole ring
+on startup: ids left behind by a previous session are replaced instead of
+accumulating in the terminal's image store, which otherwise ends with the
+terminal silently dropping new images after a restart.
+
+                                                        *mdmath-placeholders*
+Each cell is printed as U+10EEEE followed by two combining diacritics that
+encode the row and column, and coloured with the image id. Kitty receives a
+transmit + virtual placement (`a=t` then `a=p,U=1`); terminals handled through
+`transfer = 'direct'` get the combined `a=T,U=1` form, which is what Ghostty
+accepts.
+
+==============================================================================
+8. TROUBLESHOOTING                                *mdmath-troubleshooting*
+
+Nothing renders:
+  - `:checkhealth mdmath` — it reports Neovim version, parsers (including a real
+    injection check), Node.js/npm/rsvg-convert/ImageMagick, installed
+    dependencies, the effective options and the terminal classification.
+  - On an unsupported terminal equations stay as source text on purpose; see
+    |mdmath-terminals|.
+  - Inside tmux, `allow-passthrough` must be on.
+
+Errors appear next to the equation:
+  - A red message replaces the source whenever the renderer fails (invalid TeX,
+    missing PNG, protocol error). The message comes from MathJax or the Node.js
+    side verbatim.
+
+Images look blurry or shifted:
+  - The terminal probably does not report pixel dimensions; see
+    |mdmath-cell-size|. Raising `internal_scale` helps with sharpness only.
+
+Images stay after closing Neovim:
+  - Deletion sequences are asynchronous and can be lost on exit; the fixed id
+    ring replaces them on the next start (see |mdmath-image-ids|).
+
+Build failures:
+  - `:MdMath build` prints npm's stderr. Run `npm install` inside `mdmath-js`
+    manually to see the full output.
+
+==============================================================================
+9. DEVELOPMENT                                           *mdmath-development*
+
+  make test     headless Lua specs (one Neovim process per spec) and Node tests
+  make bench    viewport scan cost on a synthetic document
+
+The annotation setup lives in `.luarc.json`: LuaJIT runtime, the Neovim runtime
+pointed to through `${env:VIMRUNTIME}` and `vim` declared as a global so the file
+also works in editors that are not started from Neovim. With
+lua-language-server installed, the Lua sources can be checked with: >
+  lua-language-server --check=. --checklevel=Warning
+<
+`tests/manual/` holds a Kitty capability probe, a manual checklist and scripts
+that dump the extmark layout of a real UI session.
+
+Versioning: `lua/mdmath/version.lua` is the single source of truth;
+`mdmath-js/package.json` and `package-lock.json` must match it (enforced by a
+test). Releases are cut by pushing a `v*` tag that matches the version, which
+triggers the Release workflow.
+
+ vim:tw=78:ts=8:noet:ft=help:norl:
