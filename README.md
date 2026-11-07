@@ -114,19 +114,25 @@ The render spec needs `node`, `rsvg-convert`, ImageMagick and `mdmath-js/node_mo
 with `python3 tests/manual/kitty-probe.py`; the manual checklist is
 `tests/manual/mdmath-test.md`.
 
-The Lua client and the node processor share a byte-oriented wire format. If you change any
-field order or meaning, bump `PROTOCOL_VERSION` in both `lua/mdmath/Processor.lua` and
-`mdmath-js/src/processor.js` — the processor refuses to start on a mismatch.
+The Lua client and the node processor share a byte-oriented wire format. If you change any field order or meaning, bump `PROTOCOL_VERSION` in both `lua/mdmath/Processor.lua` and `mdmath-js/src/processor.js` — the processor refuses to start on a mismatch.
+
+The plugin version lives in `lua/mdmath/version.lua`. `mdmath-js/package.json` and `package-lock.json` must match it (a test enforces this), and a release tag must match it after dropping the `v` prefix and any prerelease suffix (the Release workflow enforces this).
+
+Releases are cut by pushing a `v*` tag: the `Release` workflow publishes a GitHub release with generated notes. Nothing is compiled or bundled — the repository is the artifact, and `mdmath-js` dependencies are installed by users through `:MdMath build`.
 
 ## Looking to the future!
 
-The plugin is currently at alpha, many features are planned for the next versions, here are some of the planned features, also you have any suggestions, feel free to open an issue:
-  - [x] Detect terminals without Unicode placeholders and keep the source text visible
-  - [ ] Support Kitty Graphics Protocol without Unicode Placeholders (blocked upstream, see above)
-  - [ ] An API to generate equation images.
-  - [ ] Render in floating windows
-  - [ ] Render out-of-line
+The plugin is at alpha. Remaining work, ordered by implementation effort (smallest first):
+
+  - [ ] Refactoring: LuaCATS annotations — mechanical, no behaviour change
+  - [ ] Documentation — usage, configuration, protocol notes
+  - [ ] An API to generate equation images — wrap `Processor`/`Image` in a callback-based Lua API; needs tests for cache hits and error responses
+  - [ ] Render in floating windows — requires a renderer that hosts the placeholder cells in a scratch buffer instead of the source buffer; window lifecycle is the risky part
+  - [ ] Render out-of-line — preview pane plus scroll synchronisation
+  - [ ] Support Kitty Graphics Protocol without Unicode Placeholders — blocked upstream, see the terminal notes above
+
+Done:
+
   - [x] Dynamic width and height
-  - [ ] Refactoring: LuaCATS annotations
-  - [ ] Documentation
   - [x] `:checkhealth`
+  - [x] Detect terminals without Unicode placeholders and keep the source text visible
