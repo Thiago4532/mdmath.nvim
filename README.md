@@ -102,7 +102,7 @@ Currently, it only supports rendering the image inline, features like rendering 
 
 If you are using TMUX, remember to enable `allow-passthrough` in your `~/.tmux.conf`.
 
-The full reference — every option, terminal support, the render pipeline and the IPC wire format — is available offline as `:help mdmath`.
+The full reference — every option, terminal support, the render pipeline and the IPC wire format — is available offline as `:help mdmath`. `require'mdmath'.render(tex, opts, callback)` renders an equation without a buffer; see `:help mdmath-api`.
 
 ## Development
 
@@ -128,13 +128,13 @@ Releases are cut by pushing a `v*` tag: the `Release` workflow publishes a GitHu
 
 The plugin is at alpha. Remaining work, ordered by implementation effort (smallest first):
 
-  - [ ] An API to generate equation images — wrap `Processor`/`Image` in a callback-based Lua API; needs tests for cache hits and error responses
   - [ ] Render in floating windows — requires a renderer that hosts the placeholder cells in a scratch buffer instead of the source buffer; window lifecycle is the risky part
   - [ ] Render out-of-line — preview pane plus scroll synchronisation
   - [ ] Support Kitty Graphics Protocol without Unicode Placeholders — blocked upstream, see the terminal notes above
 
 Done:
 
+  - [x] An API to generate equation images — `require'mdmath'.render(tex, opts, callback)` wraps `Processor`/`Image`; `tests/spec/api_spec.lua` covers the contract and `api_render_spec.lua` the cache hits and error responses against the real renderer
   - [x] Refactoring: LuaCATS annotations
   - [x] Documentation — `:help mdmath` covers usage, options, terminal support and protocol notes
   - [x] Dynamic width and height

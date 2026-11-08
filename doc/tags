@@ -3,6 +3,7 @@ g:mdmath_force_placeholders	mdmath.txt	/*g:mdmath_force_placeholders*
 mdmath	mdmath.txt	/*mdmath*
 mdmath-PROTOCOL_VERSION	mdmath.txt	/*mdmath-PROTOCOL_VERSION*
 mdmath-anticonceal	mdmath.txt	/*mdmath-anticonceal*
+mdmath-api	mdmath.txt	/*mdmath-api*
 mdmath-cell-size	mdmath.txt	/*mdmath-cell-size*
 mdmath-commands	mdmath.txt	/*mdmath-commands*
 mdmath-contents	mdmath.txt	/*mdmath-contents*

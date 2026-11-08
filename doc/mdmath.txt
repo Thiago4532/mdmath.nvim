@@ -4,7 +4,7 @@ mdmath.nvim renders Markdown equations ($...$ and $$...$$) as images inside the
 buffer, using the Kitty Graphics Protocol with Unicode placeholders.
 
                                                        *mdmath-version*
-This help file documents version 0.1.0. The plugin is alpha: the Lua API and the
+This help file documents version 0.2.0. The plugin is alpha: the Lua API and the
 wire format may change between minor versions.
 
 ==============================================================================
@@ -14,11 +14,12 @@ CONTENTS                                                    *mdmath-contents*
   2. Requirements ..................................... |mdmath-requirements|
   3. Setup ............................................ |mdmath-setup|
   4. Commands ......................................... |mdmath-commands|
-  5. Options .......................................... |mdmath-options|
-  6. Terminals ........................................ |mdmath-terminals|
-  7. How it works ..................................... |mdmath-protocol|
-  8. Troubleshooting .................................. |mdmath-troubleshooting|
-  9. Development ...................................... |mdmath-development|
+  5. Lua API .......................................... |mdmath-api|
+  6. Options .......................................... |mdmath-options|
+  7. Terminals ........................................ |mdmath-terminals|
+  8. How it works ..................................... |mdmath-protocol|
+  9. Troubleshooting .................................. |mdmath-troubleshooting|
+ 10. Development ...................................... |mdmath-development|
 
 ==============================================================================
 1. INTRODUCTION                                             *mdmath-intro*
@@ -89,10 +90,52 @@ Without it the escape sequences are swallowed and no image appears.
 :MdMath build           Run `npm install` inside `mdmath-js`.
 
 `require'mdmath'` exposes the same operations as `enable()`, `disable()`,
-`clear()` and `build()`, plus `setup(opts)` and `version`.
+`clear()` and `build()`, plus `setup(opts)`, `render()` (see |mdmath-api|) and
+`version`.
 
 ==============================================================================
-5. OPTIONS                                                *mdmath-options*
+5. LUA API                                                   *mdmath-api*
+
+`require'mdmath'.render(tex, opts, callback)` renders an equation without a
+buffer overlay and hands the caller a placed image. It is meant for previews in
+floating windows, statuslines or any other consumer that wants the picture
+without the extmark bookkeeping.
+
+>lua
+  require'mdmath'.render('a^2 + b^2', {}, function(image, err)
+      if not image then
+          vim.notify(err, vim.log.levels.ERROR)
+          return
+      end
+      -- image.rows, image.cols: placement size in cells
+      -- image.path:              PNG on disk
+      -- image:text():            placeholder cells, one string per row
+      -- image:color():           id to use as the foreground colour
+      -- image:close():           delete the placement
+  end)
+<
+The callback always runs outside the libuv fast context, exactly once. Invalid
+arguments raise; renderer failures (invalid TeX, missing Node.js, stdout not a
+TTY) arrive as `err`.
+
+Options (all optional):
+
+    bufnr         buffer that owns the shared renderer (default: current)
+    color         `#rrggbb` or highlight group (default: `foreground`)
+    width         minimum width in cells (default 1)
+    height        minimum height in cells (default 1)
+    dynamic       grow to the natural size (default true)
+    center        centre the image in its cells (default false)
+    cell_width    pixels per cell (default: queried from the terminal)
+    cell_height   pixels per cell (default: queried from the terminal)
+
+The renderer is shared with the buffers the plugin already tracks: it starts on
+first use and lives as long as that buffer. Identical requests hit the Node.js
+content cache and return the same PNG path; closing an image only removes the
+Kitty placement, never the file.
+
+==============================================================================
+6. OPTIONS                                                *mdmath-options*
 
 Defaults: >lua
 
@@ -157,7 +200,7 @@ Defaults: >lua
     which corrupts the escape sequence and prints the payload as text.
 
 ==============================================================================
-6. TERMINALS                                          *mdmath-terminals*
+7. TERMINALS                                          *mdmath-terminals*
 
 Images are anchored to text cells with Unicode placeholders (U+10EEEE plus
 diacritics encoding row and column). A terminal that implements the Kitty
@@ -193,7 +236,7 @@ warn once; images may look blurry or misaligned in that case. The cached size is
 refreshed on |VimResized|.
 
 ==============================================================================
-7. HOW IT WORKS                                          *mdmath-protocol*
+8. HOW IT WORKS                                          *mdmath-protocol*
 
   overlay.lua     finds equations in the viewport (Tree-sitter query)
   Equation.lua    owns the source range, requests a render, places the mark
@@ -246,7 +289,7 @@ transmit + virtual placement (`a=t` then `a=p,U=1`); terminals handled through
 accepts.
 
 ==============================================================================
-8. TROUBLESHOOTING                                *mdmath-troubleshooting*
+9. TROUBLESHOOTING                                *mdmath-troubleshooting*
 
 Nothing renders:
   - `:checkhealth mdmath` — it reports Neovim version, parsers (including a real
@@ -274,7 +317,7 @@ Build failures:
     manually to see the full output.
 
 ==============================================================================
-9. DEVELOPMENT                                           *mdmath-development*
+10. DEVELOPMENT                                           *mdmath-development*
 
   make test     headless Lua specs (one Neovim process per spec) and Node tests
   make bench    viewport scan cost on a synthetic document

@@ -119,8 +119,8 @@ end
 --- the mark/lifecycle specs assert; nothing is written to the terminal.
 function M.stub_image()
     local Image = require'mdmath.Image'
-    Image.new = function(rows, cols)
-        local image = { id = 1, rows = rows, cols = cols }
+    Image.new = function(rows, cols, payload)
+        local image = { id = 1, rows = rows, cols = cols, path = payload }
         function image:text()
             local out = {}
             for row = 1, rows do

@@ -213,6 +213,7 @@ end
 ---@field id integer|nil nil once closed
 ---@field rows integer
 ---@field cols integer
+---@field path string PNG on disk; the renderer deletes it when it exits
 ---@field _init fun(self: mdmath.Image, rows: integer, cols: integer, payload: string): false|nil
 ---@field new fun(rows: integer, cols: integer, payload: string): mdmath.Image?
 local Image = util.class 'Image'
@@ -237,6 +238,7 @@ function Image:_init(rows, cols, payload)
     self.id = id
     self.rows = rows
     self.cols = cols
+    self.path = payload
 
     -- A "virtual placement" (`U=1`) is what makes the placeholder cells resolve:
     -- nothing is drawn at the cursor, the image only appears where U+10EEEE cells

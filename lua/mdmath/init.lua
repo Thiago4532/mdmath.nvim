@@ -87,4 +87,18 @@ function M.build()
     require'mdmath.build'.build()
 end
 
+--- Renders TeX to an image without a buffer overlay.
+---
+--- The callback receives `(image, err)`: an |mdmath.Image| on success, or nil
+--- plus a message when the renderer fails. See |mdmath-api| for the options.
+---@param tex string TeX source without the surrounding `$`
+---@param opts mdmath.RenderOpts|nil
+---@param callback mdmath.RenderCallback
+function M.render(tex, opts, callback)
+    if not M.is_loaded then
+        M.setup(false)
+    end
+    require'mdmath.api'.render(tex, opts, callback)
+end
+
 return M
