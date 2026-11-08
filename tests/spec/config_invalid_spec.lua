@@ -12,6 +12,7 @@ local cases = {
     { name = 'foreground = number', opts = { foreground = 123 } },
     { name = 'filetypes = string', opts = { filetypes = 'markdown' } },
     { name = 'transfer = bogus', opts = { transfer = 'bogus' } },
+    { name = 'preview_on_cursor = string', opts = { preview_on_cursor = 'yes' } },
 }
 
 for _, case in ipairs(cases) do

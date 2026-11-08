@@ -17,6 +17,34 @@ local M = {}
 
 local ns = api.nvim_create_namespace('mdmath-float')
 
+-- Floats normally paint the `NormalFloat` panel. Reusing the editor's `Normal`
+-- (and a `FloatBorder` copy with the same background) makes the window share
+-- the buffer background: seamless on an opaque colorscheme, transparent when
+-- `Normal` has no background. A window still covers the cells underneath; this
+-- only removes the panel colour.
+local TRANSPARENT_BORDER = 'MdMathPreviewBorder'
+
+---@param win integer
+local function make_transparent(win)
+    -- Re-created on every open: `:colorscheme` clears custom highlight groups.
+    local normal = api.nvim_get_hl(0, {name = 'Normal', link = false})
+    local source = api.nvim_get_hl(0, {name = 'FloatBorder', link = false})
+    local border = {
+        bg = normal.bg and string.format('#%06x', normal.bg) or 'NONE',
+        fg = source.fg and string.format('#%06x', source.fg) or nil,
+        bold = source.bold,
+        italic = source.italic,
+        underline = source.underline,
+        undercurl = source.undercurl,
+        strikethrough = source.strikethrough,
+        reverse = source.reverse,
+        standout = source.standout,
+    }
+    api.nvim_set_hl(0, TRANSPARENT_BORDER, border)
+
+    vim.wo[win].winhl = 'Normal:Normal,FloatBorder:' .. TRANSPARENT_BORDER
+end
+
 ---@class mdmath.FloatOpts : mdmath.RenderOpts
 ---@field border string|nil window border; default 'rounded'
 ---@field title string|nil window title
@@ -29,6 +57,18 @@ local state = {
     buf = nil,
     image = nil,
 }
+
+-- Single reusable timer for the "cursor rested on an equation" debounce. It is
+-- only started for buffers where the overlay is active: those already hold the
+-- parsed equations, so the auto preview costs an O(#equations) lookup instead
+-- of re-parsing the buffer on every cursor move.
+local auto_timer = nil
+
+local function cancel_auto()
+    if auto_timer then
+        auto_timer:stop()
+    end
+end
 
 local function teardown()
     -- Detach the handles before closing: `WinClosed` fires synchronously inside
@@ -54,6 +94,7 @@ end
 --- Closes the current preview. Idempotent.
 function M.close()
     state.generation = state.generation + 1
+    cancel_auto()
     teardown()
 end
 
@@ -102,6 +143,9 @@ local function show(image, opts)
         title = opts.title,
         focusable = false,
     })
+
+    -- Re-created on every open: `:colorscheme` clears custom highlight groups.
+    make_transparent(win)
 
     state.buf = buf
     state.win = win
@@ -178,6 +222,8 @@ function M.preview(tex, opts, callback)
         end
     end
 
+    cancel_auto()
+
     -- Bumped before rendering: a callback that arrives after the user moved on
     -- must drop its image instead of opening a stale window.
     local generation = state.generation + 1
@@ -205,14 +251,62 @@ function M.preview(tex, opts, callback)
     end)
 end
 
+--- Arms the debounce that opens the preview once the cursor has been resting on
+--- an equation for `update_interval` milliseconds.
+local function schedule_auto()
+    cancel_auto()
+
+    local config = require'mdmath.config'.opts
+    if not config.preview_on_cursor then
+        return
+    end
+
+    local bufnr = api.nvim_get_current_buf()
+    if not vim.tbl_contains(config.filetypes, vim.bo[bufnr].filetype) then
+        return
+    end
+    if vim.fn.mode() ~= 'n' then
+        return
+    end
+
+    if not auto_timer then
+        auto_timer = assert(vim.uv.new_timer())
+    end
+
+    auto_timer:start(config.update_interval, 0, vim.schedule_wrap(function()
+        if state.win or api.nvim_get_current_buf() ~= bufnr or vim.fn.mode() ~= 'n' then
+            return
+        end
+
+        local overlay = package.loaded['mdmath.overlay']
+        if not overlay then
+            return
+        end
+
+        local cursor = api.nvim_win_get_cursor(0)
+        local equation = overlay.equation_at(bufnr, cursor[1] - 1, cursor[2])
+        if not equation then
+            return
+        end
+
+        M.preview(equation.equation, {bufnr = bufnr}, function() end)
+    end))
+end
+
 local group = api.nvim_create_augroup('MdMathPreview', {clear = true})
 
-api.nvim_create_autocmd({'CursorMoved', 'InsertEnter', 'BufLeave', 'WinLeave', 'WinScrolled'}, {
+api.nvim_create_autocmd({'CursorMoved', 'WinScrolled'}, {
     group = group,
     callback = function()
-        if state.win then
-            M.close()
-        end
+        M.close()
+        schedule_auto()
+    end,
+})
+
+api.nvim_create_autocmd({'InsertEnter', 'BufLeave', 'WinLeave'}, {
+    group = group,
+    callback = function()
+        M.close()
     end,
 })
 

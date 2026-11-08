@@ -4,7 +4,7 @@ mdmath.nvim renders Markdown equations ($...$ and $$...$$) as images inside the
 buffer, using the Kitty Graphics Protocol with Unicode placeholders.
 
                                                        *mdmath-version*
-This help file documents version 0.3.0. The plugin is alpha: the Lua API and the
+This help file documents version 0.3.1. The plugin is alpha: the Lua API and the
 wire format may change between minor versions.
 
 ==============================================================================
@@ -150,7 +150,12 @@ is what `:MdMath preview` does.
 <
 The image is placed in a scratch buffer (one placeholder cell per image cell,
 in place of the source text on screen) that is not modifiable and not
-focusable. `opts` accepts everything from |mdmath-api| plus:
+focusable. The window reuses the editor's `Normal` background instead of the
+`NormalFloat` panel (the border keeps its colour but takes the same
+background), so it blends with the buffer and is see-through when `Normal` has
+no background. The buffer text is not drawn behind a window, so this removes the
+panel colour, not the window's footprint.
+`opts` accepts everything from |mdmath-api| plus:
 
     border        window border (default `rounded`)
     title         optional window title
@@ -160,6 +165,12 @@ insert-mode entry, buffer switch or window switch closes it, and a new preview
 replaces the previous one; a render that finishes after the user moved on is
 discarded without opening a window. The callback receives the window id, or nil
 plus an error message.
+
+This is on by default: when the cursor rests on an equation for
+`update_interval` milliseconds, the preview opens without any command. Set
+`preview_on_cursor = false` (see |mdmath-preview_on_cursor|) to require
+`:MdMath preview` every time. Errors raised while opening automatically are
+silent: the inline mark already reports them.
 
 ==============================================================================
 6. OPTIONS                                                *mdmath-options*
@@ -175,6 +186,7 @@ Defaults: >lua
       dynamic_scale = 1.0,
       internal_scale = 1.0,
       update_interval = 400,
+      preview_on_cursor = true,
       transfer = 'auto',
   }
 <
@@ -214,7 +226,14 @@ Defaults: >lua
 
                                                      *mdmath-update_interval*
 `update_interval` (integer)
-    Debounce, in milliseconds, between a buffer change and the re-parse.
+    Debounce, in milliseconds, between a buffer change and the re-parse. The
+    same delay is used before the floating preview opens.
+
+                                                  *mdmath-preview_on_cursor*
+`preview_on_cursor` (boolean)
+    Open the floating preview by itself once the cursor has rested on an
+    equation for `update_interval` milliseconds; it closes on the next cursor
+    movement. Set to false to keep |mdmath-preview| strictly on-demand.
 
                                                             *mdmath-transfer*
 `transfer` (string)

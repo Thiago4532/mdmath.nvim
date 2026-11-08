@@ -98,7 +98,7 @@ Currently, it only supports rendering the image inline, features like rendering 
   - `:MdMath disable`: Disable the plugin for the current buffer
   - `:MdMath clear`: Refresh all equations
   - `:MdMath build`: Build the node.js server
-  - `:MdMath preview`: Preview the equation under the cursor in a floating window
+  - `:MdMath preview`: Preview the equation under the cursor in a floating window (also opens automatically when the cursor rests on an equation; disable with `preview_on_cursor = false`)
   - `:checkhealth mdmath`: Check Neovim/parser/dependency/terminal requirements
 
 If you are using TMUX, remember to enable `allow-passthrough` in your `~/.tmux.conf`.
@@ -134,7 +134,7 @@ The plugin is at alpha. Remaining work, ordered by implementation effort (smalle
 
 Done:
 
-  - [x] Render in floating windows — `:MdMath preview` / `require'mdmath'.preview()` hosts the placeholder cells in a scratch buffer; the window closes on cursor movement, scroll, insert mode or buffer/window switch
+  - [x] Render in floating windows — `:MdMath preview` / `require'mdmath'.preview()` hosts the placeholder cells in a scratch buffer; the preview opens when the cursor rests on an equation (`preview_on_cursor`, default on) and closes on cursor movement, scroll, insert mode or buffer/window switch
   - [x] An API to generate equation images — `require'mdmath'.render(tex, opts, callback)` wraps `Processor`/`Image`; `tests/spec/api_spec.lua` covers the contract and `api_render_spec.lua` the cache hits and error responses against the real renderer
   - [x] Refactoring: LuaCATS annotations
   - [x] Documentation — `:help mdmath` covers usage, options, terminal support and protocol notes

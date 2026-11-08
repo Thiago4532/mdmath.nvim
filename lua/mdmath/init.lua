@@ -47,6 +47,9 @@ function M.setup(opts)
     end
 
     require'mdmath.config'.set_opts(opts)
+    -- The preview module owns the autocmds for the default-on preview, so load
+    -- it here: otherwise it would only be registered after `preview()` ran once.
+    require'mdmath.float'
     M.is_loaded = true
 
     if opts ~= false then

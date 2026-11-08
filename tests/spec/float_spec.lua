@@ -11,7 +11,7 @@ local t = dofile(root .. '/tests/helper.lua')
 t.bootstrap()
 
 local mdmath = require'mdmath'
-mdmath.setup({})
+mdmath.setup({update_interval = 30})
 t.stub_image()
 t.stub_processor()
 
@@ -43,6 +43,13 @@ local ns = vim.api.nvim_create_namespace('mdmath-float')
 local marks = vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, {details = true})
 t.eq(#marks, 2, 'each row carries the image id highlight')
 t.eq(vim.api.nvim_win_get_config(win).focusable, false, 'preview is not focusable')
+t.ok(vim.wo[win].winhl:find('Normal:Normal', 1, true) ~= nil,
+    'preview shares the editor Normal instead of NormalFloat')
+t.ok(vim.wo[win].winhl:find('MdMathPreviewBorder', 1, true) ~= nil,
+    'preview maps FloatBorder to the transparent group')
+local normal_bg = vim.api.nvim_get_hl(0, {name = 'Normal', link = false}).bg
+t.eq(vim.api.nvim_get_hl(0, {name = 'MdMathPreviewBorder'}).bg, normal_bg,
+    'the border uses the editor background')
 
 -- A second preview replaces the first instead of stacking windows.
 local first = win
@@ -97,8 +104,40 @@ if t.has_injection_query() then
 
     vim.api.nvim_exec_autocmds('CursorMoved', {})
     t.eq(float.win(), nil, 'the command preview closes on cursor movement')
+    -- Cancel the auto-preview timer armed by that event before the next block.
+    float.close()
 else
     t.skip('equation under the cursor', 'markdown_inline injections unavailable')
+end
+
+-- Default-on: the preview opens by itself once the cursor rests on an equation.
+if t.has_injection_query() then
+    local lines = {'$a + b$', 'plain text'}
+    local auto_buf = t.markdown_buffer(lines)
+    t.full_view(lines)
+    mdmath.enable(auto_buf)
+
+    vim.api.nvim_win_set_cursor(0, {1, 2})
+    vim.api.nvim_exec_autocmds('CursorMoved', {buffer = auto_buf})
+    t.ok(t.wait_for(function()
+        return float.win() ~= nil
+    end, 5000), 'preview opens when the cursor rests on an equation')
+
+    vim.api.nvim_win_set_cursor(0, {2, 0})
+    vim.api.nvim_exec_autocmds('CursorMoved', {buffer = auto_buf})
+    t.eq(float.win(), nil, 'moving off the equation closes the preview')
+    t.ok(not t.wait_for(function()
+        return float.win() ~= nil
+    end, 500), 'no preview opens off an equation')
+
+    vim.api.nvim_win_set_cursor(0, {1, 2})
+    vim.api.nvim_exec_autocmds('CursorMoved', {buffer = auto_buf})
+    t.ok(t.wait_for(function()
+        return float.win() ~= nil
+    end, 5000), 'preview reopens when the cursor returns to the equation')
+    float.close()
+else
+    t.skip('preview on cursor rest', 'markdown_inline injections unavailable')
 end
 
 t.finish()

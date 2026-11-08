@@ -222,6 +222,36 @@ function Buffer:parse(start_row, end_row)
     self.equations = equations
 end
 
+--- Equation whose source range contains (row, col).
+---@param bufnr integer
+---@param row integer 0-indexed
+---@param col integer 0-indexed
+---@return mdmath.Equation|nil
+function M.equation_at(bufnr, row, col)
+    local buffer = buffers[bufnr]
+    if not buffer then
+        return nil
+    end
+
+    for _, eq in ipairs(buffer.equations) do
+        if eq.valid and eq.pos[1] then
+            local first = eq.pos[1]
+            local line_count = eq.lines and #eq.lines or 1
+            if row >= first and row < first + line_count then
+                if line_count > 1 then
+                    return eq
+                end
+                local start_col = eq.pos[2]
+                if col >= start_col and col <= start_col + #eq.text then
+                    return eq
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
 ---@param bufnr integer
 ---@return mdmath.overlay.Buffer|nil
 local function create_buffer(bufnr)

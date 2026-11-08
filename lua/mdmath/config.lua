@@ -8,6 +8,7 @@
 ---@field dynamic_scale number
 ---@field internal_scale number
 ---@field update_interval integer
+---@field preview_on_cursor boolean
 ---@field transfer 'auto'|'file'|'direct'
 
 ---@type mdmath.Opts
@@ -27,6 +28,11 @@ local default_opts = {
     dynamic_scale = 1.0,
     -- Interval between updates (milliseconds).
     update_interval = 400,
+
+    -- Open a floating preview while the cursor rests on an equation. The
+    -- preview closes on the next cursor movement; set to false to keep the
+    -- preview on-demand (`:MdMath preview`).
+    preview_on_cursor = true,
 
     -- Internal scale of the equation images, increase to prevent blurry images when increasing terminal
     -- font, high values may produce aliased images.
@@ -100,6 +106,7 @@ function M.validate()
         dynamic_scale = {opts.dynamic_scale, 'number'},
         internal_scale = {opts.internal_scale, 'number'},
         update_interval = {opts.update_interval, 'number'},
+        preview_on_cursor = {opts.preview_on_cursor, 'boolean'},
         transfer = {opts.transfer, 'string'},
     }
 

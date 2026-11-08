@@ -13,6 +13,7 @@ local opts = config.opts
 
 t.eq(opts.filetypes[1], 'markdown', 'default filetypes')
 t.eq(opts.transfer, 'auto', 'default transfer')
+t.eq(opts.preview_on_cursor, true, 'default preview_on_cursor')
 t.eq(opts.update_interval, 400, 'default update_interval')
 t.ok(opts.foreground:match('^#%x%x%x%x%x%x$') ~= nil, 'foreground resolved to a hex colour')
 

@@ -21,6 +21,7 @@ mdmath-no-tty-fallback	mdmath.txt	/*mdmath-no-tty-fallback*
 mdmath-options	mdmath.txt	/*mdmath-options*
 mdmath-placeholders	mdmath.txt	/*mdmath-placeholders*
 mdmath-preview	mdmath.txt	/*mdmath-preview*
+mdmath-preview_on_cursor	mdmath.txt	/*mdmath-preview_on_cursor*
 mdmath-protocol	mdmath.txt	/*mdmath-protocol*
 mdmath-requirements	mdmath.txt	/*mdmath-requirements*
 mdmath-setup	mdmath.txt	/*mdmath-setup*
