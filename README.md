@@ -102,6 +102,7 @@ Equations render inline; `:MdMath preview` (and, by default, resting the cursor 
   - `:MdMath clear`: Refresh all equations
   - `:MdMath build`: Build the node.js server
   - `:MdMath preview`: Preview the equation under the cursor in a floating window (also opens automatically when the cursor rests on an equation; disable with `preview_on_cursor = false`)
+  - `:MdMath pane`: Toggle a persistent out-of-line preview pane in the bottom-right corner, refreshed while typing
   - `:checkhealth mdmath`: Check Neovim/parser/dependency/terminal requirements
 
 If you are using TMUX, remember to enable `allow-passthrough` in your `~/.tmux.conf`.
@@ -132,12 +133,12 @@ Releases are cut by pushing a `v*` tag: the `Release` workflow publishes a GitHu
 
 The plugin is at alpha. Remaining work, ordered by implementation effort (smallest first):
 
-  - [ ] Render out-of-line — preview pane plus scroll synchronisation
   - [ ] Support Kitty Graphics Protocol without Unicode Placeholders — blocked upstream, see the terminal notes above
 
 Done:
 
-  - [x] Render in floating windows — `:MdMath preview` / `require'mdmath'.preview()` hosts the placeholder cells in a scratch buffer; the preview opens when the cursor rests on an equation (`preview_on_cursor`, default on) and closes on cursor movement, scroll, insert mode or buffer/window switch
+  - [x] Render out-of-line — `:MdMath pane` docks a persistent preview to the bottom-right corner; it follows the equation under the cursor, refreshes on scroll and while typing
+  - [x] Render in floating windows — `:MdMath preview` / `require'mdmath'.preview()` hosts the placeholder cells in a scratch buffer; the preview opens when the cursor rests on an equation (`preview_on_cursor`, default on), stays live in Insert mode and closes on cursor movement, scroll or buffer/window switch
   - [x] An API to generate equation images — `require'mdmath'.render(tex, opts, callback)` wraps `Processor`/`Image`; `tests/spec/api_spec.lua` covers the contract and `api_render_spec.lua` the cache hits and error responses against the real renderer
   - [x] Refactoring: LuaCATS annotations
   - [x] Documentation — `:help mdmath` covers usage, options, terminal support and protocol notes

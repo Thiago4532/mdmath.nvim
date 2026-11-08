@@ -5,10 +5,11 @@
 -- scratch buffer whose whole content is the image, with the image id as the
 -- foreground colour of every cell.
 --
--- Lifecycle: a preview is anchored to the cursor, so any cursor movement,
--- scroll, insert-mode entry or buffer/window switch closes it. A newer request
--- also cancels an older one through the generation counter, including requests
--- that are still being rendered by node.
+-- Lifecycle: the cursor preview is transient in Normal mode (cursor movement
+-- closes it, resting on an equation reopens it) and stays live in Insert mode,
+-- where buffer changes refresh it instead of closing. The optional pane is a
+-- persistent, screen-anchored preview that follows the equation under the
+-- cursor and also refreshes while typing.
 
 local api = vim.api
 local util = require'mdmath.util'
@@ -56,6 +57,17 @@ local state = {
     win = nil,
     buf = nil,
     image = nil,
+    tex = nil,
+    bufnr = nil,
+    pane = {
+        enabled = false,
+        generation = 0,
+        win = nil,
+        buf = nil,
+        image = nil,
+        tex = nil,
+        bufnr = nil,
+    },
 }
 
 -- Single reusable timer for the "cursor rested on an equation" debounce. It is
@@ -63,10 +75,19 @@ local state = {
 -- parsed equations, so the auto preview costs an O(#equations) lookup instead
 -- of re-parsing the buffer on every cursor move.
 local auto_timer = nil
+-- Debounce shared by the pane and the insert-mode refresh of the preview.
+local refresh_timer = nil
+local hooked_overlay = false
 
 local function cancel_auto()
     if auto_timer then
         auto_timer:stop()
+    end
+end
+
+local function cancel_refresh()
+    if refresh_timer then
+        refresh_timer:stop()
     end
 end
 
@@ -78,10 +99,32 @@ local function teardown()
     local win, buf = state.win, state.buf
     state.win = nil
     state.buf = nil
+    state.tex = nil
+    state.bufnr = nil
 
     if state.image then
         state.image:close()
         state.image = nil
+    end
+    if win and api.nvim_win_is_valid(win) then
+        api.nvim_win_close(win, true)
+    end
+    if buf and api.nvim_buf_is_valid(buf) then
+        api.nvim_buf_delete(buf, {force = true})
+    end
+end
+
+--- Hides the pane window but keeps the pane enabled.
+local function teardown_pane()
+    local win, buf = state.pane.win, state.pane.buf
+    state.pane.win = nil
+    state.pane.buf = nil
+    state.pane.tex = nil
+    state.pane.bufnr = nil
+
+    if state.pane.image then
+        state.pane.image:close()
+        state.pane.image = nil
     end
     if win and api.nvim_win_is_valid(win) then
         api.nvim_win_close(win, true)
@@ -107,19 +150,17 @@ function M.win()
     return nil
 end
 
---- Builds the scratch buffer and the floating window for one image.
----@param image mdmath.Image
----@param opts mdmath.FloatOpts
----@return integer win
-local function show(image, opts)
-    local lines = image:text()
-
+--- Builds the read-only scratch buffer holding the placeholder cells.
+---@param lines string[]
+---@param id integer
+---@return integer buf
+local function build_buffer(lines, id)
     local buf = api.nvim_create_buf(false, true)
     api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 
     -- The placeholder cells resolve to the image only when their foreground
     -- colour is the image id, the same rule the inline marks follow.
-    local group = require'mdmath.highlight-colors'[image:color()]
+    local group = require'mdmath.highlight-colors'[id]
     for i, line in ipairs(lines) do
         api.nvim_buf_set_extmark(buf, ns, i - 1, 0, {
             end_row = i - 1,
@@ -131,22 +172,57 @@ local function show(image, opts)
     -- Editing the cells would desynchronise them from the placement.
     vim.bo[buf].modifiable = false
     vim.bo[buf].bufhidden = 'wipe'
+    return buf
+end
 
-    local win = api.nvim_open_win(buf, false, {
-        relative = 'cursor',
-        row = 1,
-        col = 0,
-        width = image.cols,
-        height = image.rows,
-        style = 'minimal',
-        border = opts.border or 'rounded',
-        title = opts.title,
-        focusable = false,
-    })
+--- Opens an image window: `cursor` is the transient preview, `pane` is the
+--- persistent preview docked to the bottom-right of the editor.
+---@param buf integer
+---@param width integer
+---@param height integer
+---@param opts mdmath.FloatOpts
+---@param anchor 'cursor'|'pane'
+---@return integer win
+local function open_window(buf, width, height, opts, anchor)
+    local win
+    if anchor == 'pane' then
+        win = api.nvim_open_win(buf, false, {
+            relative = 'editor',
+            anchor = 'SE',
+            row = 1,
+            col = 0,
+            width = width,
+            height = height,
+            style = 'minimal',
+            border = opts.border or 'rounded',
+            title = opts.title or ' mdmath ',
+            focusable = false,
+        })
+    else
+        win = api.nvim_open_win(buf, false, {
+            relative = 'cursor',
+            row = 1,
+            col = 0,
+            width = width,
+            height = height,
+            style = 'minimal',
+            border = opts.border or 'rounded',
+            title = opts.title,
+            focusable = false,
+        })
+    end
 
     -- Re-created on every open: `:colorscheme` clears custom highlight groups.
     make_transparent(win)
+    return win
+end
 
+---@param image mdmath.Image
+---@param opts mdmath.FloatOpts
+---@return integer win
+local function show(image, opts)
+    local buf = build_buffer(image:text(), image:color())
+    local win = open_window(buf, image.cols, image.rows, opts, 'cursor')
     state.buf = buf
     state.win = win
     state.image = image
@@ -222,6 +298,8 @@ function M.preview(tex, opts, callback)
         end
     end
 
+    local bufnr = opts.bufnr or api.nvim_get_current_buf()
+
     cancel_auto()
 
     -- Bumped before rendering: a callback that arrives after the user moved on
@@ -247,8 +325,153 @@ function M.preview(tex, opts, callback)
             image:close()
             return callback(nil, tostring(win_or_err))
         end
+        state.tex = tex
+        state.bufnr = bufnr
         callback(win_or_err, nil)
     end)
+end
+
+--- TeX of the equation under the cursor. Uses the overlay's parsed equations
+--- when the buffer is tracked (cheap) and falls back to Tree-sitter otherwise.
+---@param bufnr integer
+---@return string|nil
+local function equation_text_at_cursor(bufnr)
+    local overlay = package.loaded['mdmath.overlay']
+    if overlay and overlay.is_enabled(bufnr) then
+        local cursor = api.nvim_win_get_cursor(0)
+        local equation = overlay.equation_at(bufnr, cursor[1] - 1, cursor[2])
+        return equation and equation.equation or nil
+    end
+    return M.equation_under_cursor(bufnr)
+end
+
+---@param bufnr integer
+---@param tex string|nil
+local function refresh_pane(bufnr, tex)
+    if not tex then
+        -- Keep the pane enabled but hide it while the cursor is elsewhere.
+        teardown_pane()
+        return
+    end
+    if state.pane.win and state.pane.tex == tex and state.pane.bufnr == bufnr then
+        return
+    end
+
+    state.pane.generation = state.pane.generation + 1
+    local generation = state.pane.generation
+    require'mdmath.api'.render(tex, {bufnr = bufnr}, function(image, err)
+        if generation ~= state.pane.generation or not state.pane.enabled then
+            if image then
+                image:close()
+            end
+            return
+        end
+        if not image then
+            -- Mid-edit TeX: keep the last good image instead of flashing.
+            return
+        end
+        teardown_pane()
+        local buf = build_buffer(image:text(), image:color())
+        local win = open_window(buf, image.cols, image.rows, {}, 'pane')
+        state.pane.buf = buf
+        state.pane.win = win
+        state.pane.image = image
+        state.pane.tex = tex
+        state.pane.bufnr = bufnr
+    end)
+end
+
+--- Re-reads the equation under the cursor and updates the pane and the live
+--- preview. Called from the debounce timer and from overlay parse updates.
+function M.refresh()
+    local bufnr = api.nvim_get_current_buf()
+    local tex = equation_text_at_cursor(bufnr)
+
+    if state.pane.enabled then
+        refresh_pane(bufnr, tex)
+    end
+
+    if not state.win then
+        return
+    end
+    if not tex then
+        M.close()
+        return
+    end
+    if state.tex == tex and state.bufnr == bufnr then
+        -- Keep the window under the cursor while the line moves.
+        pcall(api.nvim_win_set_config, state.win, {relative = 'cursor', row = 1, col = 0})
+        return
+    end
+    M.preview(tex, {bufnr = bufnr}, function() end)
+end
+
+local hook_overlay
+
+--- Debounces `refresh()` for the pane and for insert-mode typing.
+local function schedule_refresh()
+    cancel_refresh()
+    if not (state.win or state.pane.enabled) then
+        return
+    end
+    hook_overlay()
+
+    if not refresh_timer then
+        refresh_timer = assert(vim.uv.new_timer())
+    end
+    refresh_timer:start(require'mdmath.config'.opts.update_interval, 0, vim.schedule_wrap(function()
+        M.refresh()
+    end))
+end
+
+--- Registers the overlay hook once, so the preview follows parsed edits even
+--- when the text changes faster than the cursor does.
+hook_overlay = function()
+    if hooked_overlay then
+        return
+    end
+    local overlay = package.loaded['mdmath.overlay']
+    if not overlay then
+        return
+    end
+    hooked_overlay = true
+    overlay.on_update(function()
+        if state.win or state.pane.enabled then
+            schedule_refresh()
+        end
+    end)
+end
+
+--- Toggles the persistent preview pane.
+function M.pane_toggle()
+    if state.pane.enabled then
+        M.pane_close()
+        return
+    end
+    state.pane.enabled = true
+    -- One image is enough: drop the cursor-anchored preview while the pane is on.
+    M.close()
+    M.refresh()
+end
+
+--- Closes the pane and disables it until `pane_toggle()` runs again.
+function M.pane_close()
+    state.pane.enabled = false
+    state.pane.generation = state.pane.generation + 1
+    teardown_pane()
+end
+
+---@return integer|nil
+function M.pane_win()
+    if state.pane.win and api.nvim_win_is_valid(state.pane.win) then
+        return state.pane.win
+    end
+    return nil
+end
+
+---@return boolean
+function M.pane_enabled()
+    return state.pane.enabled
 end
 
 --- Arms the debounce that opens the preview once the cursor has been resting on
@@ -257,9 +480,11 @@ local function schedule_auto()
     cancel_auto()
 
     local config = require'mdmath.config'.opts
-    if not config.preview_on_cursor then
+    if not config.preview_on_cursor or state.pane.enabled then
         return
     end
+
+    hook_overlay()
 
     local bufnr = api.nvim_get_current_buf()
     if not vim.tbl_contains(config.filetypes, vim.bo[bufnr].filetype) then
@@ -298,23 +523,54 @@ local group = api.nvim_create_augroup('MdMathPreview', {clear = true})
 api.nvim_create_autocmd({'CursorMoved', 'WinScrolled'}, {
     group = group,
     callback = function()
+        if vim.fn.mode():sub(1, 1) == 'i' then
+            schedule_refresh()
+            return
+        end
         M.close()
         schedule_auto()
+        schedule_refresh()
     end,
 })
 
-api.nvim_create_autocmd({'InsertEnter', 'BufLeave', 'WinLeave'}, {
+-- Insert mode keeps the preview: typing must update it, not dismiss it.
+api.nvim_create_autocmd({'CursorMovedI', 'TextChanged', 'TextChangedI', 'InsertLeave'}, {
+    group = group,
+    callback = function()
+        schedule_refresh()
+    end,
+})
+
+api.nvim_create_autocmd('InsertEnter', {
+    group = group,
+    callback = function()
+        schedule_refresh()
+    end,
+})
+
+api.nvim_create_autocmd({'BufLeave', 'WinLeave'}, {
     group = group,
     callback = function()
         M.close()
+        teardown_pane()
+    end,
+})
+
+api.nvim_create_autocmd('BufEnter', {
+    group = group,
+    callback = function()
+        schedule_refresh()
     end,
 })
 
 api.nvim_create_autocmd('WinClosed', {
     group = group,
     callback = function(args)
-        if state.win and tonumber(args.match) == state.win then
+        local win = tonumber(args.match)
+        if state.win and win == state.win then
             M.close()
+        elseif state.pane.win and win == state.pane.win then
+            teardown_pane()
         end
     end,
 })

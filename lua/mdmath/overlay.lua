@@ -9,6 +9,8 @@ local capability = require'mdmath.capability'
 local augroup = nvim.create_augroup('MdMathManager', {clear = true})
 
 local M = {}
+---@type fun(bufnr: integer)|nil
+local on_update = nil
 ---@type table<integer, mdmath.overlay.Buffer>
 local buffers = {}
 
@@ -220,6 +222,24 @@ function Buffer:parse(start_row, end_row)
     end
 
     self.equations = equations
+
+    if on_update then
+        on_update(bufnr)
+    end
+end
+
+--- Callback invoked after a buffer re-parses its equations. Used by the float
+--- preview to follow edits in real time.
+---@param callback fun(bufnr: integer)|nil
+function M.on_update(callback)
+    on_update = callback
+end
+
+--- Whether the overlay is tracking a buffer (it holds parsed equations).
+---@param bufnr integer
+---@return boolean
+function M.is_enabled(bufnr)
+    return buffers[bufnr] ~= nil
 end
 
 --- Equation whose source range contains (row, col).

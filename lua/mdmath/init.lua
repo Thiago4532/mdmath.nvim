@@ -117,4 +117,13 @@ function M.preview(tex, opts, callback)
     require'mdmath.float'.preview(tex, opts, callback)
 end
 
+--- Toggles the persistent preview pane (bottom-right corner). The pane follows
+--- the equation under the cursor and refreshes while typing; see |mdmath-pane|.
+function M.pane()
+    if not M.is_loaded then
+        M.setup(false)
+    end
+    require'mdmath.float'.pane_toggle()
+end
+
 return M

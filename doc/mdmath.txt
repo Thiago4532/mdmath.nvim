@@ -4,7 +4,7 @@ mdmath.nvim renders Markdown equations ($...$ and $$...$$) as images inside the
 buffer, using the Kitty Graphics Protocol with Unicode placeholders.
 
                                                        *mdmath-version*
-This help file documents version 0.3.1. The plugin is alpha: the Lua API and the
+This help file documents version 0.4.0. The plugin is alpha: the Lua API and the
 wire format may change between minor versions.
 
 ==============================================================================
@@ -90,10 +90,12 @@ Without it the escape sequences are swallowed and no image appears.
 :MdMath build           Run `npm install` inside `mdmath-js`.
 :MdMath preview         Preview the equation under the cursor in a floating
                         window; see |mdmath-preview|.
+:MdMath pane            Toggle the persistent out-of-line preview pane; see
+                        |mdmath-pane|.
 
 `require'mdmath'` exposes the same operations as `enable()`, `disable()`,
-`clear()`, `build()` and `preview()`, plus `setup(opts)`, `render()` (see
-|mdmath-api|) and `version`.
+`clear()`, `build()`, `preview()` and `pane()`, plus `setup(opts)`, `render()`
+(see |mdmath-api|) and `version`.
 
 ==============================================================================
 5. LUA API                                                   *mdmath-api*
@@ -160,17 +162,33 @@ panel colour, not the window's footprint.
     border        window border (default `rounded`)
     title         optional window title
 
-The window is anchored below the cursor. The next cursor movement, scroll,
-insert-mode entry, buffer switch or window switch closes it, and a new preview
+The window is anchored below the cursor. In Normal mode the next cursor
+movement, scroll, buffer switch or window switch closes it, and a new preview
 replaces the previous one; a render that finishes after the user moved on is
-discarded without opening a window. The callback receives the window id, or nil
-plus an error message.
+discarded without opening a window. In Insert mode the preview stays open and
+follows the text: after `update_interval` the equation under the cursor is
+re-read and re-rendered, so the image tracks what is being typed. The callback
+receives the window id, or nil plus an error message.
 
 This is on by default: when the cursor rests on an equation for
 `update_interval` milliseconds, the preview opens without any command. Set
 `preview_on_cursor = false` (see |mdmath-preview_on_cursor|) to require
 `:MdMath preview` every time. Errors raised while opening automatically are
 silent: the inline mark already reports them.
+
+                                                              *mdmath-pane*
+`:MdMath pane` (or `require'mdmath'.pane()`) toggles an out-of-line preview pane
+docked to the bottom-right corner of the editor. Unlike |mdmath-preview|, the
+pane is not anchored to the cursor line: it keeps showing the equation under the
+cursor as the cursor moves or the buffer scrolls (after `update_interval`), and
+it refreshes while typing in Insert mode.
+
+The pane stays enabled when the cursor leaves an equation: the window hides and
+reappears on the next equation without touching the layout. Enabling the pane
+closes the cursor-anchored preview (one image at a time) and suppresses the
+automatic one, so the pane and |mdmath-preview_on_cursor| do not fight. The pane
+reuses the overlay's parsed equations, so the buffer must be tracked by the
+plugin (see |mdmath-terminals|).
 
 ==============================================================================
 6. OPTIONS                                                *mdmath-options*

@@ -19,6 +19,7 @@ mdmath-internal_scale	mdmath.txt	/*mdmath-internal_scale*
 mdmath-intro	mdmath.txt	/*mdmath-intro*
 mdmath-no-tty-fallback	mdmath.txt	/*mdmath-no-tty-fallback*
 mdmath-options	mdmath.txt	/*mdmath-options*
+mdmath-pane	mdmath.txt	/*mdmath-pane*
 mdmath-placeholders	mdmath.txt	/*mdmath-placeholders*
 mdmath-preview	mdmath.txt	/*mdmath-preview*
 mdmath-preview_on_cursor	mdmath.txt	/*mdmath-preview_on_cursor*
