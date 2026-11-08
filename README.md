@@ -98,6 +98,7 @@ Currently, it only supports rendering the image inline, features like rendering 
   - `:MdMath disable`: Disable the plugin for the current buffer
   - `:MdMath clear`: Refresh all equations
   - `:MdMath build`: Build the node.js server
+  - `:MdMath preview`: Preview the equation under the cursor in a floating window
   - `:checkhealth mdmath`: Check Neovim/parser/dependency/terminal requirements
 
 If you are using TMUX, remember to enable `allow-passthrough` in your `~/.tmux.conf`.
@@ -128,12 +129,12 @@ Releases are cut by pushing a `v*` tag: the `Release` workflow publishes a GitHu
 
 The plugin is at alpha. Remaining work, ordered by implementation effort (smallest first):
 
-  - [ ] Render in floating windows — requires a renderer that hosts the placeholder cells in a scratch buffer instead of the source buffer; window lifecycle is the risky part
   - [ ] Render out-of-line — preview pane plus scroll synchronisation
   - [ ] Support Kitty Graphics Protocol without Unicode Placeholders — blocked upstream, see the terminal notes above
 
 Done:
 
+  - [x] Render in floating windows — `:MdMath preview` / `require'mdmath'.preview()` hosts the placeholder cells in a scratch buffer; the window closes on cursor movement, scroll, insert mode or buffer/window switch
   - [x] An API to generate equation images — `require'mdmath'.render(tex, opts, callback)` wraps `Processor`/`Image`; `tests/spec/api_spec.lua` covers the contract and `api_render_spec.lua` the cache hits and error responses against the real renderer
   - [x] Refactoring: LuaCATS annotations
   - [x] Documentation — `:help mdmath` covers usage, options, terminal support and protocol notes

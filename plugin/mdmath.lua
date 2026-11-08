@@ -12,7 +12,7 @@ end
 
 ---@type string[]
 local subcommands = {
-    'enable', 'disable', 'clear', 'build'
+    'enable', 'disable', 'clear', 'build', 'preview'
 }
 
 api.nvim_create_user_command('MdMath', function(opts)

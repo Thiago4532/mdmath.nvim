@@ -20,6 +20,7 @@ mdmath-intro	mdmath.txt	/*mdmath-intro*
 mdmath-no-tty-fallback	mdmath.txt	/*mdmath-no-tty-fallback*
 mdmath-options	mdmath.txt	/*mdmath-options*
 mdmath-placeholders	mdmath.txt	/*mdmath-placeholders*
+mdmath-preview	mdmath.txt	/*mdmath-preview*
 mdmath-protocol	mdmath.txt	/*mdmath-protocol*
 mdmath-requirements	mdmath.txt	/*mdmath-requirements*
 mdmath-setup	mdmath.txt	/*mdmath-setup*

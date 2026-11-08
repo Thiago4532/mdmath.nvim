@@ -4,7 +4,7 @@ mdmath.nvim renders Markdown equations ($...$ and $$...$$) as images inside the
 buffer, using the Kitty Graphics Protocol with Unicode placeholders.
 
                                                        *mdmath-version*
-This help file documents version 0.2.0. The plugin is alpha: the Lua API and the
+This help file documents version 0.3.0. The plugin is alpha: the Lua API and the
 wire format may change between minor versions.
 
 ==============================================================================
@@ -88,10 +88,12 @@ Without it the escape sequences are swallowed and no image appears.
 :MdMath disable         Disable it for the current buffer.
 :MdMath clear           Forget the current equations and re-render them.
 :MdMath build           Run `npm install` inside `mdmath-js`.
+:MdMath preview         Preview the equation under the cursor in a floating
+                        window; see |mdmath-preview|.
 
 `require'mdmath'` exposes the same operations as `enable()`, `disable()`,
-`clear()` and `build()`, plus `setup(opts)`, `render()` (see |mdmath-api|) and
-`version`.
+`clear()`, `build()` and `preview()`, plus `setup(opts)`, `render()` (see
+|mdmath-api|) and `version`.
 
 ==============================================================================
 5. LUA API                                                   *mdmath-api*
@@ -133,6 +135,31 @@ The renderer is shared with the buffers the plugin already tracks: it starts on
 first use and lives as long as that buffer. Identical requests hit the Node.js
 content cache and return the same PNG path; closing an image only removes the
 Kitty placement, never the file.
+
+                                                           *mdmath-preview*
+`require'mdmath'.preview(tex, opts, callback)` opens the same image in a
+floating window. Passing nil for `tex` uses the equation under the cursor, which
+is what `:MdMath preview` does.
+
+>lua
+  require'mdmath'.preview(nil, {border = 'single'}, function(win, err)
+      if not win then
+          vim.notify(err, vim.log.levels.ERROR)
+      end
+  end)
+<
+The image is placed in a scratch buffer (one placeholder cell per image cell,
+in place of the source text on screen) that is not modifiable and not
+focusable. `opts` accepts everything from |mdmath-api| plus:
+
+    border        window border (default `rounded`)
+    title         optional window title
+
+The window is anchored below the cursor. The next cursor movement, scroll,
+insert-mode entry, buffer switch or window switch closes it, and a new preview
+replaces the previous one; a render that finishes after the user moved on is
+discarded without opening a window. The callback receives the window id, or nil
+plus an error message.
 
 ==============================================================================
 6. OPTIONS                                                *mdmath-options*

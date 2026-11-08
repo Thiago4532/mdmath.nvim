@@ -101,4 +101,17 @@ function M.render(tex, opts, callback)
     require'mdmath.api'.render(tex, opts, callback)
 end
 
+--- Opens a floating preview of an equation. `tex` nil means the equation under
+--- the cursor. The preview closes on the next cursor movement, scroll, insert
+--- mode entry or buffer/window switch; see |mdmath-preview|.
+---@param tex string|nil
+---@param opts mdmath.FloatOpts|nil
+---@param callback mdmath.FloatCallback|nil
+function M.preview(tex, opts, callback)
+    if not M.is_loaded then
+        M.setup(false)
+    end
+    require'mdmath.float'.preview(tex, opts, callback)
+end
+
 return M
