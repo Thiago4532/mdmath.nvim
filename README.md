@@ -73,6 +73,9 @@ opts = {
     dynamic_scale = 1.0,
     -- Interval between updates (milliseconds).
     update_interval = 400,
+    -- Open a floating preview while the cursor rests on an equation.
+    -- Set to false to keep `:MdMath preview` on-demand.
+    preview_on_cursor = true,
 
     -- Internal scale of the equation images, increase to prevent blurry images when increasing terminal
     -- font, high values may produce aliased images.
@@ -93,7 +96,7 @@ opts = {
 
 ## Usage
 
-Currently, it only supports rendering the image inline, features like rendering at a floating window will be available soon.
+Equations render inline; `:MdMath preview` (and, by default, resting the cursor on an equation) shows a floating preview.
   - `:MdMath enable`: Enable the plugin for the current buffer
   - `:MdMath disable`: Disable the plugin for the current buffer
   - `:MdMath clear`: Refresh all equations
