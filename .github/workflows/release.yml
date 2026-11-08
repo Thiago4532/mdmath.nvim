@@ -17,8 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # `--generate-notes` diffs against the previous tag.
+          # The notes are diffed against the previous tag.
           fetch-depth: 0
+          fetch-tags: true
 
       - name: Check the tag matches the plugin version
         run: |
@@ -46,8 +47,44 @@ jobs:
             *-*) prerelease=(--prerelease) ;;
           esac
 
+          # GitHub's generated notes only list merged pull requests. This
+          # repository also pushes commits straight to main, so append the
+          # commits themselves: otherwise a release without PRs gets no notes
+          # at all.
+          previous=$(git describe --tags --abbrev=0 --match 'v*' "$GITHUB_REF_NAME^" 2>/dev/null || true)
+          if [ -n "$previous" ]; then
+            range="$previous..$GITHUB_REF_NAME"
+            compare="https://github.com/$GITHUB_REPOSITORY/compare/$previous...$GITHUB_REF_NAME"
+          else
+            range="$GITHUB_REF_NAME"
+            compare="https://github.com/$GITHUB_REPOSITORY/commits/$GITHUB_REF_NAME"
+          fi
+
+          work=$(mktemp -d)
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+            -f tag_name="$GITHUB_REF_NAME" \
+            ${previous:+-f previous_tag_name="$previous"} \
+            --jq .body > "$work/generated.md"
+          # The generated body ends with the compare link; it is re-added after
+          # the commit list, so drop it here.
+          grep -v '^\*\*Full Changelog\*\*:' "$work/generated.md" > "$work/prs.md" || true
+
+          {
+            if [ -s "$work/prs.md" ]; then
+              cat "$work/prs.md"
+              echo
+            fi
+            echo "## Commits"
+            echo
+            git log --no-merges --reverse \
+              --pretty="- %s ([%h](https://github.com/$GITHUB_REPOSITORY/commit/%H))" \
+              "$range"
+            echo
+            echo "**Full Changelog**: $compare"
+          } > "$work/notes.md"
+
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
-            --generate-notes \
+            --notes-file "$work/notes.md" \
             --verify-tag \
             "${prerelease[@]}"
